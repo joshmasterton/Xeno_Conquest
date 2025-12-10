@@ -1,0 +1,19 @@
+{
+  "name": "xeno-conquest",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev": "concurrently -n \"client,server,worker\" -c \"cyan,yellow,magenta\" \"npm run dev --workspace @xeno/client\" \"npm run dev --workspace @xeno/server\" \"npm run dev --workspace @xeno/worker\"",
+    "dev:noworker": "concurrently -n \"client,server\" -c \"cyan,yellow\" \"npm run dev --workspace @xeno/client\" \"npm run dev --workspace @xeno/server\"",
+    "lint": "npm run lint --if-present --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.3.3"
+  }
+}

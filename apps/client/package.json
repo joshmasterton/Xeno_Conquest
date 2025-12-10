@@ -1,0 +1,27 @@
+{
+  "name": "@xeno/client",
+  "private": true,
+  "version": "0.1.0",
+  "main": "src/main.tsx",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@xeno/shared": "0.1.0",
+    "pixi-viewport": "5.0.2",
+    "pixi.js": "7.3.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io-client": "^4.7.2",
+    "zustand": "^4.4.6"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.42",
+    "@types/react-dom": "^18.2.17",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0"
+  }
+}
