@@ -24,7 +24,7 @@ export class MapEngine {
   constructor(private container: HTMLElement) {
     console.log('[MapEngine] Constructing, container size:', container.clientWidth, 'x', container.clientHeight);
     this.app = new Application({
-      background: "#0b1021",
+      background: "#0a0514", // Deep purple-black alien sky
       resizeTo: container,
       antialias: true,
       eventMode: 'none',
@@ -192,15 +192,30 @@ export class MapEngine {
       const maskValue = imageData.data[i]; // Grayscale: 255 = water (white), 0 = land (black)
       
       if (maskValue > 127) {
-        // Water - blue
-        terrainData.data[i] = 74;
-        terrainData.data[i + 1] = 144;
-        terrainData.data[i + 2] = 196;
+        // Alien water - toxic cyan/purple with depth variation
+        const depth = (maskValue - 127) / 128; // 0 = shallow, 1 = deep
+        terrainData.data[i] = Math.floor(45 + depth * 25);     // R: 45-70
+        terrainData.data[i + 1] = Math.floor(85 + depth * 40); // G: 85-125 (cyan/teal)
+        terrainData.data[i + 2] = Math.floor(115 + depth * 55); // B: 115-170 (purple undertone)        
       } else {
-        // Land - green
-        terrainData.data[i] = 106;
-        terrainData.data[i + 1] = 150;
-        terrainData.data[i + 2] = 80;
+        // Alien vegetation - purple/magenta gradient based on elevation
+        const elevation = maskValue / 127; // 0 = sea level, 1 = high ground
+        if (elevation < 0.3) {
+          // Lowlands - deep purple fungal forests
+          terrainData.data[i] = Math.floor(95 + elevation * 40);      // R: 95-135 (purple)
+          terrainData.data[i + 1] = Math.floor(45 + elevation * 50);  // G: 45-95 (dark)
+          terrainData.data[i + 2] = Math.floor(110 + elevation * 50); // B: 110-160 (purple)
+        } else if (elevation < 0.6) {
+          // Mid elevation - magenta crystalline plains
+          terrainData.data[i] = Math.floor(135 + elevation * 30);     // R: 135-165 (magenta)
+          terrainData.data[i + 1] = Math.floor(65 + elevation * 35);  // G: 65-100
+          terrainData.data[i + 2] = Math.floor(125 + elevation * 30); // B: 125-155 (purple)
+        } else {
+          // Highlands - bright alien flora with bio-luminescence
+          terrainData.data[i] = Math.floor(155 + elevation * 40);     // R: 155-195 (bright magenta)
+          terrainData.data[i + 1] = Math.floor(85 + elevation * 50);  // G: 85-135 (pink)
+          terrainData.data[i + 2] = Math.floor(145 + elevation * 45); // B: 145-190 (purple-pink)
+        }
       }
       terrainData.data[i + 3] = 255; // Full opacity
     }
@@ -329,7 +344,7 @@ export class MapEngine {
     sprite.clear();
     
     const isPlayer = ownerId?.includes('player');
-    const color = isPlayer ? 0x4a90e2 : 0xe24a4a;
+    const color = isPlayer ? 0x8d5dca : 0xca5d8d; // Purple for player, magenta for enemy
     
     // LOD-based rendering
     if (this.currentLOD === 'macro') {
@@ -432,35 +447,35 @@ export class MapEngine {
   private drawTerritory(t: Territory, lod: 'macro' | 'mid' | 'micro') {
     const g = new Graphics();
     
-    // ELEVATION-BASED TERRAIN SHADING (like reference image)
+    // ALIEN TERRAIN BIOMES - Rich detail for close zoom
     const elevation = (t as any).elevation || 0;
     let terrainColor: number;
     
-    // Water to Mountain gradient based on elevation
+    // Alien biome gradient based on elevation
     if (elevation < -0.15) {
-      // Deep water
-      terrainColor = 0x1a4d7a;
+      // Deep toxic abyss - dark cyan with purple undertone
+      terrainColor = 0x1d3d5a;
     } else if (elevation < 0) {
-      // Shallow water
-      terrainColor = 0x4a90c4;
+      // Shallow alien seas - luminescent cyan
+      terrainColor = 0x3d7d9a;
     } else if (elevation < 0.15) {
-      // Lowlands - green forests
-      terrainColor = 0x5a8a4a;
+      // Lowlands - dense purple fungal forests
+      terrainColor = 0x6d3d7a;
     } else if (elevation < 0.35) {
-      // Plains - lighter green
-      terrainColor = 0x7aa060;
+      // Plains - magenta crystalline fields
+      terrainColor = 0x8d5d8a;
     } else if (elevation < 0.5) {
-      // Foothills - tan/yellow
-      terrainColor = 0xb4a05a;
+      // Foothills - bright alien flora
+      terrainColor = 0xad7daa;
     } else if (elevation < 0.65) {
-      // Mountains - gray
-      terrainColor = 0x8a8a7a;
+      // Mountains - pink crystal formations
+      terrainColor = 0xbd8dba;
     } else if (elevation < 0.8) {
-      // High mountains - darker gray
-      terrainColor = 0x6a6a6a;
+      // High peaks - bioluminescent outcrops
+      terrainColor = 0xcd9dca;
     } else {
-      // Peaks - light gray/white snow
-      terrainColor = 0xd0d0d0;
+      // Summit - glowing alien peaks
+      terrainColor = 0xddadda;
     }
     
     // Blend with ownership color if owned (subtle tint)
@@ -479,9 +494,9 @@ export class MapEngine {
     // Selection highlight (all LODs)
     const isSelected = this.selectedTerritoryId === t.id;
     
-    // LOD 0 (Macro < 0.2): Thin dark borders from polygon
+    // LOD 0 (Macro < 0.2): Glowing borders for alien world aesthetic
     if (lod === 'macro') {
-      g.lineStyle({ width: isSelected ? 2 : 1, color: isSelected ? 0xffff00 : 0x2a3a4a, alpha: isSelected ? 0.9 : 0.7 });
+      g.lineStyle({ width: isSelected ? 2 : 1, color: isSelected ? 0xffff00 : 0x4a2d5a, alpha: isSelected ? 0.9 : 0.6 });
       if (t.ownerId) {
         const ownerColor = this.hashColor(t.ownerId);
         g.beginFill(ownerColor, 0.12);
@@ -513,9 +528,9 @@ export class MapEngine {
         // Number will be added with Text in next iteration
       }
     }
-    // LOD 1 (Mid 0.2-0.8): Crisp borders from polygon
+    // LOD 1 (Mid 0.2-0.8): Enhanced glowing borders
     else if (lod === 'mid') {
-      g.lineStyle({ width: isSelected ? 3 : 1.5, color: isSelected ? 0xffff00 : 0x2a3a4a, alpha: isSelected ? 0.9 : 0.8 });
+      g.lineStyle({ width: isSelected ? 3 : 1.5, color: isSelected ? 0xffff00 : 0x5a3d6a, alpha: isSelected ? 0.95 : 0.75 });
       if (t.ownerId) {
         const ownerColor = this.hashColor(t.ownerId);
         g.beginFill(ownerColor, 0.15);
@@ -535,8 +550,8 @@ export class MapEngine {
         g.endFill();
       }
       
-      // Add inner highlight for each polygon
-      g.lineStyle({ width: 1.5, color: 0xffffff, alpha: 0.25 });
+      // Add bioluminescent inner glow for each polygon
+      g.lineStyle({ width: 1.5, color: 0xbd8dca, alpha: 0.35 });
       const inset = 8;
       const centroid = t.centroid;
       for (const polygon of polygonsToDraw) {
@@ -557,16 +572,27 @@ export class MapEngine {
       // Unit count badge
       const count = this.unitCounts.get(t.id) || 0;
       if (count > 0) {
-        g.beginFill(0x000000, 0.8);
+        g.beginFill(0x1a0a2a, 0.8); // Dark purple shadow
         g.drawCircle(t.centroid.x, t.centroid.y, 16);
         g.endFill();
-        g.beginFill(t.ownerId ? 0x4a90e2 : 0x888888, 1);
+        g.beginFill(t.ownerId ? 0x8d5dca : 0x5a3d6a, 1); // Purple or dark purple
         g.drawCircle(t.centroid.x, t.centroid.y, 14);
         g.endFill();
       }
     }
-    // LOD 2 (Micro > 0.8): Sharp detailed borders from polygon
+    // LOD 2 (Micro > 0.8): Maximum detail with bioluminescence
     else {
+      // Outer glow layer for bioluminescent effect
+      g.lineStyle({ width: isSelected ? 6 : 3, color: isSelected ? 0xffff00 : 0x3d1d4a, alpha: isSelected ? 0.4 : 0.3 });
+      for (const polygon of polygonsToDraw) {
+        if (polygon.length === 0) continue;
+        g.moveTo(polygon[0].x, polygon[0].y);
+        for (let i = 1; i < polygon.length; i++) {
+          g.lineTo(polygon[i].x, polygon[i].y);
+        }
+        g.closePath();
+      }
+      
       if (isSelected) {
         g.lineStyle({ width: 4, color: 0xffff00, alpha: 0.9 });
         for (const polygon of polygonsToDraw) {
@@ -579,7 +605,7 @@ export class MapEngine {
         }
       }
       
-      g.lineStyle({ width: 2, color: 0x1a2534, alpha: 0.9 });
+      g.lineStyle({ width: 2, color: 0x6a3d7a, alpha: 0.9 });
       if (t.ownerId) {
         const ownerColor = this.hashColor(t.ownerId);
         g.beginFill(ownerColor, 0.18);
