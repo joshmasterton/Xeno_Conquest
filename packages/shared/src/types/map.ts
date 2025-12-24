@@ -12,6 +12,7 @@ export interface RoadEdge {
 }
 
 export interface Unit {
+	id: string;
 	edgeId: string;
 	distanceOnEdge: number;
 	speed: number;

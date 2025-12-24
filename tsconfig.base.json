@@ -5,8 +5,10 @@
     "moduleResolution": "Node",
     "esModuleInterop": true,
     "strict": true,
+    "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
+      "@xeno/shared/*": ["packages/shared/src/*"],
       "@xeno/shared": ["packages/shared/src/index"]
     }
   }
