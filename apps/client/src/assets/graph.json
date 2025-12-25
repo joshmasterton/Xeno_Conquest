@@ -61,16 +61,6 @@
       "y": 2097
     },
     {
-      "id": "#a1467b",
-      "x": 1559,
-      "y": 1836
-    },
-    {
-      "id": "#a24779",
-      "x": 1581,
-      "y": 1869
-    },
-    {
       "id": "#735a02",
       "x": 968,
       "y": 2093
@@ -206,40 +196,16 @@
       "length": 889.0725504704326
     },
     {
-      "id": "#a0467c-#a1467b",
-      "sourceNodeId": "#a0467c",
-      "targetNodeId": "#a1467b",
-      "length": 264.6828290615015
-    },
-    {
-      "id": "#a0467c-#a24779",
-      "sourceNodeId": "#a0467c",
-      "targetNodeId": "#a24779",
-      "length": 237.36048533822978
-    },
-    {
       "id": "#735a02-#c3ac34",
       "sourceNodeId": "#735a02",
       "targetNodeId": "#c3ac34",
       "length": 655.0671721281719
     },
     {
-      "id": "#a1467b-#e15c01",
-      "sourceNodeId": "#a1467b",
-      "targetNodeId": "#e15c01",
-      "length": 316.03322610130726
-    },
-    {
       "id": "#735a02-#a0467c",
       "sourceNodeId": "#735a02",
       "targetNodeId": "#a0467c",
       "length": 547.0146250330058
-    },
-    {
-      "id": "#a24779-#e15c01",
-      "sourceNodeId": "#a24779",
-      "targetNodeId": "#e15c01",
-      "length": 343.7586362551492
     },
     {
       "id": "#d0b700-#de8059",
@@ -252,12 +218,6 @@
       "sourceNodeId": "#418802",
       "targetNodeId": "#de8059",
       "length": 1208.0695344225844
-    },
-    {
-      "id": "#a1467b-#a24779",
-      "sourceNodeId": "#a1467b",
-      "targetNodeId": "#a24779",
-      "length": 39.66106403010388
     },
     {
       "id": "#418802-#a0467c",

@@ -4,323 +4,337 @@ import path from 'path';
 import { RoadNode, RoadEdge, Territory } from '@xeno/shared';
 
 const ASSETS_DIR = path.join(__dirname, '../../assets');
+const WATER_COLOR = 0x000000; // Black = water
+const MIN_PIXELS = 200; // Minimum pixels for a province
+const RDP_TOLERANCE = 0.1; // Ramer-Douglas-Peucker simplification tolerance (minimal)
 
-// Tunable: Ignore territories smaller than this (removes anti-aliasing noise)
-const MIN_PIXEL_COUNT = 50; 
+interface ColorRegion {
+  colorId: number;
+  hex: string;
+  pixels: Array<[number, number]>;
+  centroidX: number;
+  centroidY: number;
+}
 
-// Helper to create a unique ID for edges
-const getEdgeId = (a: string, b: string) => [a, b].sort().join('-');
+function getPixelColor(data: Buffer, width: number, x: number, y: number, channels: number): number {
+  if (x < 0 || x >= width || y < 0) return -1;
+  const idx = (y * width + x) * channels;
+  const r = data[idx];
+  const g = data[idx + 1];
+  const b = data[idx + 2];
+  return (r << 16) | (g << 8) | b;
+}
 
-async function processMap() {
-  console.log('Loading images...');
-
-  // 1. Load the Province Map (Raw Pixel Data)
-  const provinceBuffer = await sharp(path.join(ASSETS_DIR, 'provinces.png'))
-    .ensureAlpha() // Ensure we have 4 channels (RGBA)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const { data, info } = provinceBuffer;
-  const width = info.width;
-  const height = info.height;
-  const channels = info.channels; // Should be 4 (RGBA)
-
-  console.log(`Processing ${width}x${height} image...`);
-
-  // Data structures to store stats per color
-  // Key = Color Integer (R << 24 | G << 16 | B << 8 | A)
-  const territoryStats = new Map<number, { 
-    sumX: number; 
-    sumY: number; 
-    count: number;
-    hex: string;
-  }>();
-
-  // Store connections as "ColorIntA:ColorIntB" string
-  const adjacencySet = new Set<string>();
-
-  // Boundary pixels per territory colorId: Set of "x,y"
-  const boundaryByColor = new Map<number, Set<string>>();
-
-  // Helper to get pixel color at location
-  const getPixelColor = (x: number, y: number): number => {
-    if (x < 0 || x >= width || y < 0 || y >= height) return -1;
-    const idx = (y * width + x) * channels;
-    return (data[idx] << 16) | (data[idx + 1] << 8) | data[idx + 2];
-  };
-
-  // 2. Single Pass: Scan Pixels
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const idx = (y * width + x) * channels;
-      
-      const r = data[idx];
-      const g = data[idx + 1];
-      const b = data[idx + 2];
-      const a = data[idx + 3];
-
-      // Skip transparent pixels if any
-      if (a < 128) continue;
-
-      // Unique Color Integer ID
-      const colorId = (r << 16) | (g << 8) | b;
-
-      // A. Update Centroid Stats
-      let stats = territoryStats.get(colorId);
-      if (!stats) {
-        const hex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-        stats = { sumX: 0, sumY: 0, count: 0, hex };
-        territoryStats.set(colorId, stats);
-      }
-      stats.sumX += x;
-      stats.sumY += y;
-      stats.count++;
-
-      // B. Detect if boundary: check all 8 neighbors
-      const neighborDirs = [
-        [-1, -1], [0, -1], [1, -1],
-        [-1,  0],          [1,  0],
-        [-1,  1], [0,  1], [1,  1]
-      ];
-      
-      for (const [dx, dy] of neighborDirs) {
-        const nx = x + dx, ny = y + dy;
-        const nColor = getPixelColor(nx, ny);
-        if (nColor !== colorId && nColor >= 0) {
-          // This is a boundary pixel and neighbor is valid
-          if (!boundaryByColor.has(colorId)) boundaryByColor.set(colorId, new Set());
-          boundaryByColor.get(colorId)!.add(`${x},${y}`);
-          
-          // Record edge if neighbor is not black/water
-          if (nColor !== 0) {
-            const edgeKey = colorId < nColor ? `${colorId}:${nColor}` : `${nColor}:${colorId}`;
-            adjacencySet.add(edgeKey);
-          }
+/**
+ * Extract boundary pixels and order them by walking around the perimeter.
+ * If walk fails, fall back to convex hull of all pixels.
+ */
+function traceContour(region: ColorRegion): [number, number][] {
+  if (region.pixels.length === 0) return [];
+  
+  const pixelSet = new Set(region.pixels.map(p => `${p[0]},${p[1]}`));
+  const boundary: [number, number][] = [];
+  
+  // Find all boundary pixels (adjacent to at least one non-region pixel)
+  for (const [x, y] of region.pixels) {
+    let isBoundary = false;
+    // Check 8 neighbors
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        if (!pixelSet.has(`${x + dx},${y + dy}`)) {
+          isBoundary = true;
           break;
         }
       }
+      if (isBoundary) break;
     }
+    if (isBoundary) boundary.push([x, y]);
   }
-
-  console.log(`Found ${territoryStats.size} raw color regions.`);
-  console.log(`Filtering noise (< ${MIN_PIXEL_COUNT} pixels)...`);
-
-  // 3. Generate Nodes (Centroids)
-  const nodes: RoadNode[] = [];
-  const validColorIds = new Set<number>();
-  const territories: Territory[] = [];
-
-  for (const [colorId, stats] of territoryStats.entries()) {
-    if (stats.count < MIN_PIXEL_COUNT) continue; // Skip noise
-    // Treat pure black (#000000) regions as water: skip creating territories/nodes
-    if (colorId === 0) continue;
-
-    validColorIds.add(colorId);
-
-    const cx = Math.round(stats.sumX / stats.count);
-    const cy = Math.round(stats.sumY / stats.count);
-
-    nodes.push({
-      id: stats.hex,
-      x: cx,
-      y: cy,
-    });
-
-    territories.push({
-      id: stats.hex,
-      x: cx,
-      y: cy,
-      pixelCount: stats.count,
-      neighbors: [], // fill after edges
-      radius: Math.sqrt(stats.count / Math.PI),
-    });
-  }
-
-  console.log(`Generated ${nodes.length} valid Nodes.`);
-
-  // 4. Generate Edges + territory adjacency
-  const edges: RoadEdge[] = [];
   
-  for (const connection of adjacencySet) {
-    const [idA, idB] = connection.split(':').map(Number);
-
-    // Only create edges between valid (non-noise) territories
-    if (validColorIds.has(idA) && validColorIds.has(idB)) {
-      const nodeA = nodes.find(n => n.id === territoryStats.get(idA)!.hex)!;
-      const nodeB = nodes.find(n => n.id === territoryStats.get(idB)!.hex)!;
-
-      // Calculate Euclidean Distance
-      const dist = Math.sqrt(
-        Math.pow(nodeB.x - nodeA.x, 2) + Math.pow(nodeB.y - nodeA.y, 2)
-      );
-
-      const edgeId = getEdgeId(nodeA.id, nodeB.id);
-      
-      edges.push({
-        id: edgeId,
-        sourceNodeId: nodeA.id,
-        targetNodeId: nodeB.id,
-        length: dist
-      });
-
-      // territory neighbors
-      const tA = territories.find(t => t.id === nodeA.id);
-      const tB = territories.find(t => t.id === nodeB.id);
-      if (tA && !tA.neighbors.includes(nodeB.id)) tA.neighbors.push(nodeB.id);
-      if (tB && !tB.neighbors.includes(nodeA.id)) tB.neighbors.push(nodeA.id);
+  if (boundary.length < 3) {
+    // Fallback: use convex hull of all pixels
+    return convexHull(region.pixels);
+  }
+  
+  // Find top-left boundary pixel as start
+  let start = boundary[0];
+  for (const p of boundary) {
+    if (p[1] < start[1] || (p[1] === start[1] && p[0] < start[0])) {
+      start = p;
     }
   }
-
-  console.log(`Generated ${edges.length} Edges.`);
-
-  // 5. Define Output Paths
-  const serverOutputDir = path.resolve(__dirname, '../../assets');
-  const clientOutputDir = path.resolve(__dirname, '../../../client/src/assets');
-  const sharedOutputDir = path.resolve(__dirname, '../../../../packages/shared/src/data');
-
-  // 6. Define File Names
-  const serverGraphPath = path.resolve(serverOutputDir, 'graph.json');
-  const clientGraphPath = path.resolve(clientOutputDir, 'graph.json');
-  const sharedGraphPath = path.resolve(sharedOutputDir, 'world-graph.json');
-
-  // 7. Ensure Directories Exist
-  fs.mkdirSync(serverOutputDir, { recursive: true });
-  fs.mkdirSync(clientOutputDir, { recursive: true });
-  fs.mkdirSync(sharedOutputDir, { recursive: true });
-
-  // Optional water mask: if present, mark territories with isWater=true based on centroid pixel
-  const waterPath = path.join(ASSETS_DIR, 'water.png');
-  if (fs.existsSync(waterPath)) {
-    try {
-      const waterBuf = await sharp(waterPath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-      const wdata = waterBuf.data;
-      const winfo = waterBuf.info;
-      for (const t of territories) {
-        if (t.x < 0 || t.y < 0 || t.x >= winfo.width || t.y >= winfo.height) continue;
-        const widx = (t.y * winfo.width + t.x) * winfo.channels;
-        const wr = wdata[widx];
-        const wg = wdata[widx + 1];
-        const wb = wdata[widx + 2];
-        // Simple heuristic: blue-dominant pixel means water
-        t.isWater = wb > 150 && wb > wr + 30 && wb > wg + 30;
+  
+  // Walk the boundary using 8-connectivity Moore neighborhood
+  const contour: [number, number][] = [];
+  const visited = new Set<string>();
+  let current = start;
+  let prevDir = 2; // Start looking in direction "up" (index 2 in dirs array)
+  
+  // 8 directions: E, SE, S, SW, W, NW, N, NE
+  const dirs = [[1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1], [0, -1], [1, -1]];
+  
+  while (contour.length < boundary.length * 2) {
+    contour.push(current);
+    visited.add(`${current[0]},${current[1]}`);
+    
+    // Look for next boundary pixel, starting from (prevDir + 6) % 8
+    let found = false;
+    for (let i = 0; i < 8; i++) {
+      const dir = dirs[(prevDir + 6 + i) % 8];
+      const nx = current[0] + dir[0];
+      const ny = current[1] + dir[1];
+      const nkey = `${nx},${ny}`;
+      
+      if (pixelSet.has(nkey) && !visited.has(nkey)) {
+        current = [nx, ny];
+        prevDir = (prevDir + 6 + i) % 8;
+        found = true;
+        break;
       }
-      console.log(`✓ Applied water mask for ${territories.length} territories.`);
-    } catch (err) {
-      console.warn('⚠ Failed to apply water mask:', err);
-    }
-  }
-
-  const graph = { nodes, edges };
-
-  // 8. Save to All Three Locations
-  // Server assets (for local reference)
-  try {
-    fs.writeFileSync(serverGraphPath, JSON.stringify(graph, null, 2), 'utf-8');
-    console.log(`✓ Graph saved to Server: ${serverGraphPath}`);
-  } catch (e) {
-    console.warn(`[GraphGen] Could not write server graph:`, e);
-  }
-
-  // Client assets
-  try {
-    fs.writeFileSync(clientGraphPath, JSON.stringify(graph, null, 2), 'utf-8');
-    console.log(`✓ Graph saved to Client: ${clientGraphPath}`);
-  } catch (e) {
-    console.warn(`[GraphGen] Could not write client graph:`, e);
-  }
-
-  // Shared (CRITICAL - Source of Truth for GameLoop)
-  try {
-    fs.writeFileSync(sharedGraphPath, JSON.stringify(graph, null, 2), 'utf-8');
-    console.log(`✓ Graph saved to Shared: ${sharedGraphPath}`);
-  } catch (e) {
-    console.error(`[GraphGen] FAILED to write shared graph:`, e);
-    process.exit(1);
-  }
-
-  // Provinces metadata
-  const serverProvPath = path.resolve(serverOutputDir, 'provinces.json');
-  const clientProvPath = path.resolve(clientOutputDir, 'provinces.json');
-  const sharedProvPath = path.resolve(sharedOutputDir, 'provinces.json');
-
-  try {
-    // Before writing provinces, compute polygon contours from boundary pixels
-    const contourForHex = new Map<string, [number, number][]>();
-
-    const convexHull = (points: [number, number][]): [number, number][] => {
-      if (points.length <= 3) return points;
-      
-      // Graham scan for convex hull
-      points.sort((a, b) => a[0] === b[0] ? a[1] - b[1] : a[0] - b[0]);
-      
-      const cross = (o: [number, number], a: [number, number], b: [number, number]) => {
-        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-      };
-      
-      const lower: [number, number][] = [];
-      for (let i = 0; i < points.length; i++) {
-        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], points[i]) <= 0) {
-          lower.pop();
-        }
-        lower.push(points[i]);
-      }
-      
-      const upper: [number, number][] = [];
-      for (let i = points.length - 1; i >= 0; i--) {
-        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], points[i]) <= 0) {
-          upper.pop();
-        }
-        upper.push(points[i]);
-      }
-      
-      lower.pop();
-      upper.pop();
-      return lower.concat(upper);
-    };
-
-    for (const [colorId, stats] of territoryStats.entries()) {
-      if (!validColorIds.has(colorId)) continue;
-      const hex = stats.hex;
-      const boundary = boundaryByColor.get(colorId) || new Set<string>();
-      
-      if (boundary.size === 0) continue;
-      
-      // Convert boundary to points
-      const points = Array.from(boundary).map(k => {
-        const [x, y] = k.split(',').map(Number);
-        return [x, y] as [number, number];
-      });
-      
-      // Compute convex hull for clean province boundary
-      const hull = convexHull(points);
-      contourForHex.set(hex, hull);
     }
     
-    // attach contour to territories
-    for (const t of territories) {
-      const c = contourForHex.get(t.id);
-      if (c && c.length >= 3) t.contour = c;
+    // If we're back at start with at least 10 points, we've traced the boundary
+    if (!found || (contour.length > 10 && current[0] === start[0] && current[1] === start[1])) {
+      break;
     }
-
-    fs.writeFileSync(serverProvPath, JSON.stringify(territories, null, 2), 'utf-8');
-    console.log(`✓ Provinces saved to Server: ${serverProvPath}`);
-  } catch (e) {
-    console.warn(`[GraphGen] Could not write server provinces:`, e);
   }
-  try {
-    fs.writeFileSync(clientProvPath, JSON.stringify(territories, null, 2), 'utf-8');
-    console.log(`✓ Provinces saved to Client: ${clientProvPath}`);
-  } catch (e) {
-    console.warn(`[GraphGen] Could not write client provinces:`, e);
-  }
-  try {
-    fs.writeFileSync(sharedProvPath, JSON.stringify(territories, null, 2), 'utf-8');
-    console.log(`✓ Provinces saved to Shared: ${sharedProvPath}`);
-  } catch (e) {
-    console.error(`[GraphGen] FAILED to write shared provinces:`, e);
-  }
-
-  console.log('\n[GraphGen] Map processing complete!');
+  
+  return contour.length < 3 ? convexHull(region.pixels) : contour;
 }
 
-processMap().catch(err => console.error(err));
+/**
+ * Compute convex hull using Graham scan for small/scattered regions.
+ * Falls back to angle-sorted pixels if hull is too small.
+ */
+function convexHull(pixels: Array<[number, number]>): [number, number][] {
+  if (pixels.length < 3) return [];
+  if (pixels.length === 3) return [...pixels];
+  
+  // Find centroid
+  const cx = pixels.reduce((s, p) => s + p[0], 0) / pixels.length;
+  const cy = pixels.reduce((s, p) => s + p[1], 0) / pixels.length;
+  
+  // Sort by angle from centroid
+  const sorted = [...pixels].sort((a, b) => {
+    const angleA = Math.atan2(a[1] - cy, a[0] - cx);
+    const angleB = Math.atan2(b[1] - cy, b[0] - cx);
+    return angleA - angleB;
+  });
+  
+  // If we have a valid sorted set, use it
+  if (sorted.length >= 3) {
+    return sorted;
+  }
+  
+  return [];
+}
+
+/**
+ * Ramer-Douglas-Peucker simplification.
+ */
+function simplifyContour(points: [number, number][], tolerance: number): [number, number][] {
+  if (points.length <= 2) return points;
+  
+  let maxDist = 0;
+  let maxIdx = 0;
+  const start = points[0];
+  const end = points[points.length - 1];
+  
+  for (let i = 1; i < points.length - 1; i++) {
+    const dist = pointToLineDistance(points[i], start, end);
+    if (dist > maxDist) {
+      maxDist = dist;
+      maxIdx = i;
+    }
+  }
+  
+  if (maxDist > tolerance) {
+    const left = simplifyContour(points.slice(0, maxIdx + 1), tolerance);
+    const right = simplifyContour(points.slice(maxIdx), tolerance);
+    return [...left.slice(0, -1), ...right];
+  }
+  
+  return [start, end];
+}
+
+function pointToLineDistance(p: [number, number], a: [number, number], b: [number, number]): number {
+  const num = Math.abs((b[0] - a[0]) * (a[1] - p[1]) - (a[0] - p[0]) * (b[1] - a[1]));
+  const den = Math.sqrt(Math.pow(b[0] - a[0], 2) + Math.pow(b[1] - a[1], 2));
+  return den === 0 ? 0 : num / den;
+}
+
+async function processMap() {
+  console.log('Loading provinces.png...');
+  
+  const buffer = await sharp(path.join(ASSETS_DIR, 'provinces.png'))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  
+  const { data, info } = buffer;
+  const width = info.width;
+  const height = info.height;
+  const channels = info.channels;
+  
+  console.log(`Processing ${width}x${height} image`);
+  
+  // Step 1: Count pixel frequency by color
+  const colorFrequency = new Map<number, number>();
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const colorId = getPixelColor(data, width, x, y, channels);
+      if (colorId === WATER_COLOR || colorId === -1) continue;
+      colorFrequency.set(colorId, (colorFrequency.get(colorId) || 0) + 1);
+    }
+  }
+  
+  // Sort by frequency and keep only colors that appear often (major provinces)
+  const frequentColors = Array.from(colorFrequency.entries())
+    .sort((a, b) => b[1] - a[1])
+    .filter(([color, count]) => count >= MIN_PIXELS)
+    .map(([color]) => color);
+  
+  console.log(`Found ${frequentColors.length} provinces (from ${colorFrequency.size} total unique colors)`);
+  
+  // Step 2: Group pixels by frequent color
+  const colorMap = new Map<number, ColorRegion>();
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const colorId = getPixelColor(data, width, x, y, channels);
+      
+      if (!frequentColors.includes(colorId)) continue;
+      
+      if (!colorMap.has(colorId)) {
+        const hex = `#${colorId.toString(16).padStart(6, '0')}`;
+        colorMap.set(colorId, {
+          colorId,
+          hex,
+          pixels: [],
+          centroidX: 0,
+          centroidY: 0,
+        });
+      }
+      
+      colorMap.get(colorId)!.pixels.push([x, y]);
+    }
+  }
+  
+  // Step 3: Create territories
+  const nodes: RoadNode[] = [];
+  const territories: Territory[] = [];
+  const colorToId = new Map<number, string>();
+  
+  for (const [colorId, region] of colorMap) {
+    // Compute centroid
+    const sumX = region.pixels.reduce((acc, p) => acc + p[0], 0);
+    const sumY = region.pixels.reduce((acc, p) => acc + p[1], 0);
+    region.centroidX = Math.round(sumX / region.pixels.length);
+    region.centroidY = Math.round(sumY / region.pixels.length);
+    
+    // Trace & simplify boundary
+    const rawContour = traceContour(region);
+    const contour = simplifyContour(rawContour, RDP_TOLERANCE);
+    
+    colorToId.set(colorId, region.hex);
+    
+    nodes.push({
+      id: region.hex,
+      x: region.centroidX,
+      y: region.centroidY,
+    });
+    
+    territories.push({
+      id: region.hex,
+      x: region.centroidX,
+      y: region.centroidY,
+      pixelCount: region.pixels.length,
+      neighbors: [],
+      radius: Math.sqrt(region.pixels.length / Math.PI),
+      contour: contour.length >= 3 ? contour : undefined,
+    });
+  }
+  
+  console.log(`Generated ${territories.length} territories`);
+  
+  // Step 4: Detect adjacency
+  const adjacencySet = new Set<string>();
+  
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const colorId = getPixelColor(data, width, x, y, channels);
+      if (!colorToId.has(colorId)) continue;
+      
+      // Check right and bottom neighbors
+      const rightColor = getPixelColor(data, width, x + 1, y, channels);
+      if (rightColor !== WATER_COLOR && rightColor !== colorId && colorToId.has(rightColor)) {
+        const a = colorToId.get(colorId)!;
+        const b = colorToId.get(rightColor)!;
+        const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+        adjacencySet.add(key);
+      }
+      
+      const bottomColor = getPixelColor(data, width, x, y + 1, channels);
+      if (bottomColor !== WATER_COLOR && bottomColor !== colorId && colorToId.has(bottomColor)) {
+        const a = colorToId.get(colorId)!;
+        const b = colorToId.get(bottomColor)!;
+        const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+        adjacencySet.add(key);
+      }
+    }
+  }
+  
+  // Step 5: Create edges
+  const edges: RoadEdge[] = [];
+  
+  for (const adj of adjacencySet) {
+    const [hexA, hexB] = adj.split(':');
+    
+    const nodeA = nodes.find(n => n.id === hexA);
+    const nodeB = nodes.find(n => n.id === hexB);
+    if (!nodeA || !nodeB) continue;
+    
+    const dist = Math.sqrt(Math.pow(nodeB.x - nodeA.x, 2) + Math.pow(nodeB.y - nodeA.y, 2));
+    const edgeId = [hexA, hexB].sort().join('-');
+    
+    edges.push({
+      id: edgeId,
+      sourceNodeId: hexA,
+      targetNodeId: hexB,
+      length: dist,
+    });
+    
+    // Update neighbors
+    const tA = territories.find(t => t.id === hexA);
+    const tB = territories.find(t => t.id === hexB);
+    if (tA && !tA.neighbors.includes(hexB)) tA.neighbors.push(hexB);
+    if (tB && !tB.neighbors.includes(hexA)) tB.neighbors.push(hexA);
+  }
+  
+  console.log(`Created ${edges.length} edges`);
+  
+  // Step 5: Save output
+  const worldGraph = { nodes, edges };
+  
+  const sharedDir = path.resolve(__dirname, '../../../../packages/shared/src/data');
+  const serverDir = path.resolve(__dirname, '../../assets');
+  const clientDir = path.resolve(__dirname, '../../../client/src/assets');
+  
+  [sharedDir, serverDir, clientDir].forEach(d => fs.mkdirSync(d, { recursive: true }));
+  
+  fs.writeFileSync(path.join(sharedDir, 'provinces.json'), JSON.stringify(territories, null, 2));
+  fs.writeFileSync(path.join(sharedDir, 'world-graph.json'), JSON.stringify(worldGraph, null, 2));
+  fs.writeFileSync(path.join(serverDir, 'provinces.json'), JSON.stringify(territories, null, 2));
+  fs.writeFileSync(path.join(serverDir, 'graph.json'), JSON.stringify(worldGraph, null, 2));
+  fs.writeFileSync(path.join(clientDir, 'provinces.json'), JSON.stringify(territories, null, 2));
+  fs.writeFileSync(path.join(clientDir, 'graph.json'), JSON.stringify(worldGraph, null, 2));
+  
+  console.log(`✓ Saved ${territories.length} provinces with boundaries`);
+}
+
+processMap().catch(err => {
+  console.error('Error:', err);
+  process.exit(1);
+});

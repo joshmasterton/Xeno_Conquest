@@ -55,9 +55,9 @@ export class ProvincesLayer {
       // Parse hex color and use it for fill (land = darker, water = blue-ish)
       const hexColor = parseInt(t.id.slice(1), 16);
       
-      // Fill with territory color at full opacity for macro view
-      this.polygons.beginFill(hexColor, 0.65);
-      this.polygons.lineStyle(1, 0x1a1a1a, 0.4); // Dark border
+      // SUPREMACY STYLE: Light fill so terrain shows through, dark opaque borders
+      this.polygons.beginFill(hexColor, 0.2);
+      this.polygons.lineStyle(2, 0x000000, 0.8); // Bold black borders (2px, 80% opacity)
       
       const [sx, sy] = contour[0];
       this.polygons.moveTo(sx, sy);

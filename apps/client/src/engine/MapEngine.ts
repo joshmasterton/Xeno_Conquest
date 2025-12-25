@@ -68,6 +68,7 @@ export class MapEngine {
     this.viewport.drag().pinch().wheel().decelerate();
 
     const background = Sprite.from('/color_mask.png');
+    background.position.set(0, 0);
     background.width = WORLD_SIZE;
     background.height = WORLD_SIZE;
     this.viewport.addChild(background);
@@ -142,7 +143,7 @@ export class MapEngine {
       sprite.position.set(x, y);
     }
 
-    // LOD scaffolding: hide unit dots at macro zoom and adjust rails alpha
+    // LOD scaffolding: show provinces during gameplay, hide unit dots at macro zoom
     const currentZoom = this.viewport.scale.x;
     const macro = currentZoom < 0.2;
     for (const sprite of this.unitSprites.values()) {
@@ -152,7 +153,8 @@ export class MapEngine {
       this.railsLayer.alpha = macro ? 0.15 : 0.3;
     }
     if (this.provincesLayer) {
-      this.provincesLayer.setVisible(macro);
+      // Show province borders when zoomed in (gameplay), hide at extreme macro view
+      this.provincesLayer.setVisible(currentZoom > 0.05);
     }
   };
 
