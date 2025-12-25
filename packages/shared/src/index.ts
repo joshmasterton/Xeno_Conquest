@@ -6,6 +6,7 @@ export * from './types/map';
 export * from './types/world';
 export * from './config/constants';
 export * from './protocol/events';
+export * from './utils/provinceToNode';
 
 // Provinces (territories) metadata, if available
 import provincesJson from './data/provinces.json';

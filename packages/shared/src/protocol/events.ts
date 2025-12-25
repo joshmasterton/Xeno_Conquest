@@ -9,7 +9,9 @@ export const EVENTS = {
 
 export interface MoveOrder {
   unitId: string;
-  destNodeId: string;
+  destNodeId?: string; // Optional: legacy node destination
+  targetEdgeId?: string; // Optional: precise edge to stop on
+  targetPercent?: number; // Optional: 0..1 along the target edge
 }
 
 export interface MovementSegment {

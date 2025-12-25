@@ -5,8 +5,11 @@ import {
   worldGraph,
   WORLD_SIZE,
   EVENTS,
+  provinces,
+  ensureProvinceNodeId,
   type RoadEdge,
   type RoadNode,
+  type Territory,
   type ServerToClientEvents,
   type ClientToServerEvents,
   type ServerGameTick,
@@ -14,6 +17,7 @@ import {
 } from '@xeno/shared';
 import type { EventSystem } from '@pixi/events';
 import { ProvincesLayer } from './ProvincesLayer';
+import { findNearestEdge } from './edgeHitTest';
 
 type RendererWithEvents = Renderer & { events: EventSystem };
 
@@ -40,6 +44,7 @@ export class MapEngine {
   private edges: RoadEdge[] = worldGraph.edges;
   private nodesById: Map<string, RoadNode> = new Map(worldGraph.nodes.map(n => [n.id, n]));
   private selectedUnitId: string | null = null;
+  private selectedProvinceId: string | null = null;
   private nodeGraphics: Map<string, Graphics> = new Map();
 
   constructor(container: HTMLElement, opts?: { onMetrics?: (m: EngineMetrics) => void }) {
@@ -85,11 +90,61 @@ export class MapEngine {
     this.viewport.addChild(rails);
     this.railsLayer = rails;
 
-    this.provincesLayer = new ProvincesLayer(this.viewport, (territoryId: string) => {
-      if (!this.selectedUnitId) return;
-      console.log(`📦 Order to province ${territoryId}`);
-      this.socket.emit(EVENTS.C_MOVE_ORDER, { unitId: this.selectedUnitId!, destNodeId: territoryId });
-      this.selectedUnitId = null;
+    this.provincesLayer = new ProvincesLayer(this.viewport);
+    this.provincesLayer.setProvinces(provinces as Territory[]);
+
+    // Use viewport's click detection (ignores drags)
+    // Cast to any so TS accepts pixi-viewport's custom 'clicked' event
+    (this.viewport as any).on('clicked', (e: any) => {
+      const { x, y } = e.world;
+
+      // 1) Province click has priority
+      const hitProvince = this.provincesLayer?.hitTest(x, y);
+      if (hitProvince) {
+        const nodeId = ensureProvinceNodeId(hitProvince.id, worldGraph);
+        if (!nodeId) {
+          console.warn(`No mapped node for province ${hitProvince.id}`);
+          this.selectedProvinceId = null;
+          this.provincesLayer?.highlight(null);
+          return;
+        }
+
+        if (this.selectedProvinceId === hitProvince.id) {
+          this.selectedProvinceId = null;
+          this.provincesLayer?.highlight(null);
+          console.log(`Deselected: ${hitProvince.id}`);
+        } else {
+          this.selectedProvinceId = hitProvince.id;
+          this.provincesLayer?.highlight(hitProvince);
+          console.log(`Selected: ${hitProvince.id}`);
+
+          if (this.selectedUnitId) {
+            this.socket.emit(EVENTS.C_MOVE_ORDER, {
+              unitId: this.selectedUnitId,
+              destNodeId: nodeId,
+            });
+          }
+        }
+        return;
+      }
+
+      // 2) If no province hit, attempt road/edge click
+      if (this.selectedUnitId) {
+        const edgeHit = findNearestEdge(this.edges, this.nodesById, x, y, 20);
+        if (edgeHit) {
+          console.log(`🛣 Road Order: ${edgeHit.edge.id} @ ${Math.round(edgeHit.t * 100)}%`);
+          this.socket.emit(EVENTS.C_MOVE_ORDER, {
+            unitId: this.selectedUnitId,
+            targetEdgeId: edgeHit.edge.id,
+            targetPercent: edgeHit.t,
+          });
+          return;
+        }
+      }
+
+      // 3) Clicked nothing → clear selection
+      this.selectedProvinceId = null;
+      this.provincesLayer?.highlight(null);
     });
 
     // Render interactive node dots

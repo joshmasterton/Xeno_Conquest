@@ -1,40 +1,22 @@
 import { Graphics, Container } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { provinces, type Territory } from '@xeno/shared';
+import { type Territory } from '@xeno/shared';
 
 export class ProvincesLayer {
   public container: Container;
   private polygons: Graphics;
-  private hover: Graphics;
-  private items: Territory[];
-  private onOrder: (territoryId: string) => void;
+  private highlightGraphics: Graphics;
+  private items: Territory[] = [];
 
-  constructor(viewport: Viewport, onOrder: (territoryId: string) => void) {
+  constructor(viewport: Viewport) {
     this.container = new Container();
-    this.polygons = new Graphics();
-    this.hover = new Graphics();
-    this.items = provinces as Territory[];
-    this.onOrder = onOrder;
-
-    this.drawPolygons();
-
-    // Interactive hover + click
-    this.container.interactive = true;
-    this.container.on('pointermove', (e: any) => {
-      const p = e.data.global;
-      const nearest = this.findNearestProvince(p.x, p.y);
-      this.drawHover(nearest);
-    });
-    this.container.on('pointerdown', (e: any) => {
-      const p = e.data.global;
-      const nearest = this.findNearestProvince(p.x, p.y);
-      if (!nearest || nearest.isWater) return;
-      this.onOrder(nearest.id);
-    });
-
-    this.container.addChild(this.polygons);
-    this.container.addChild(this.hover);
     viewport.addChild(this.container);
+
+    this.polygons = new Graphics();
+    this.container.addChild(this.polygons);
+
+    this.highlightGraphics = new Graphics();
+    this.container.addChild(this.highlightGraphics);
   }
 
   setVisible(v: boolean) {
@@ -46,63 +28,84 @@ export class ProvincesLayer {
     this.container.destroy({ children: true });
   }
 
+  public setProvinces(data: Territory[]) {
+    this.items = data;
+    this.drawPolygons();
+  }
+
+  public hitTest(x: number, y: number): Territory | null {
+    for (const t of this.items) {
+      if (t.isWater) continue;
+      const legacyContour = (t as any).contour as [number, number][] | undefined;
+      const contours = t.contours || (legacyContour ? [legacyContour] : []);
+      for (const contour of contours) {
+        if (contour && contour.length >= 3 && this.isPointInPolygon(x, y, contour)) {
+          return t;
+        }
+      }
+    }
+    return null;
+  }
+
+  public highlight(t: Territory | null) {
+    this.highlightGraphics.clear();
+    if (!t) return;
+
+    const legacyContour = (t as any).contour as [number, number][] | undefined;
+    const contours = t.contours || (legacyContour ? [legacyContour] : []);
+
+    this.highlightGraphics.lineStyle(3, 0xffaa00, 1);
+    this.highlightGraphics.beginFill(0xffaa00, 0.1);
+
+    for (const contour of contours) {
+      if (!contour || contour.length < 3) continue;
+      const [sx, sy] = contour[0];
+      this.highlightGraphics.moveTo(sx, sy);
+      for (let i = 1; i < contour.length; i++) {
+        const [cx, cy] = contour[i];
+        this.highlightGraphics.lineTo(cx, cy);
+      }
+      this.highlightGraphics.lineTo(sx, sy);
+    }
+
+    this.highlightGraphics.endFill();
+  }
+
   private drawPolygons() {
     this.polygons.clear();
     for (const t of this.items) {
-      // Handle the new 'contours' array (multi-islands)
-      const contours = t.contours;
-      if (!contours || contours.length === 0) continue;
+      const legacyContour = (t as any).contour as [number, number][] | undefined;
+      const contours = t.contours || (legacyContour ? [legacyContour] : []);
+      if (!contours.length) continue;
 
       const hexColor = parseInt(t.id.slice(1), 16);
-
-      // SUPREMACY STYLE: Light fill so terrain shows through, dark opaque borders
       this.polygons.beginFill(hexColor, 0.2);
       this.polygons.lineStyle(2, 0x000000, 0.8);
 
       for (const contour of contours) {
-        if (!contour || contour.length < 3) continue;
+        if (contour.length < 3) continue;
         const [sx, sy] = contour[0];
         this.polygons.moveTo(sx, sy);
         for (let i = 1; i < contour.length; i++) {
-          const [x, y] = contour[i];
-          this.polygons.lineTo(x, y);
+          const [cx, cy] = contour[i];
+          this.polygons.lineTo(cx, cy);
         }
-        this.polygons.lineTo(sx, sy); // Close the loop
+        this.polygons.lineTo(sx, sy);
       }
       this.polygons.endFill();
     }
   }
 
-  private drawHover(t: Territory | null) {
-    this.hover.clear();
-    if (!t) return;
-    if (t.contours && t.contours.length > 0) {
-      this.hover.lineStyle(3, 0xffff00, 0.8);
-      for (const contour of t.contours) {
-        if (!contour || contour.length < 3) continue;
-        const [sx, sy] = contour[0];
-        this.hover.moveTo(sx, sy);
-        for (let i = 1; i < contour.length; i++) {
-          const [x, y] = contour[i];
-          this.hover.lineTo(x, y);
-        }
-        this.hover.lineTo(sx, sy);
-      }
-    } else {
-      this.hover.lineStyle(3, 0xffff00, 0.8);
-      this.hover.drawCircle(t.x, t.y, Math.max(22, Math.min(124, t.radius + 2)));
-    }
-  }
+  // Ray-casting point-in-polygon
+  private isPointInPolygon(x: number, y: number, polygon: [number, number][]): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i][0], yi = polygon[i][1];
+      const xj = polygon[j][0], yj = polygon[j][1];
 
-  private findNearestProvince(x: number, y: number): Territory | null {
-    let best: Territory | null = null;
-    let bestD2 = Infinity;
-    for (const t of this.items) {
-      const dx = x - t.x;
-      const dy = y - t.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) { bestD2 = d2; best = t; }
+      const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
+      if (intersect) inside = !inside;
     }
-    return best;
+    return inside;
   }
 }

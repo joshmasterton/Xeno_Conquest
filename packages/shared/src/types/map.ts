@@ -18,6 +18,10 @@ export interface Unit {
 	speed: number;
 	pathQueue?: string[]; // sequence of nodeIds to visit (next targets)
 	ownerId?: string; // 'ai' or playerId; undefined = neutral
+
+	// Precise stopping control (optional)
+	targetEdgeId?: string | null;
+	targetPercent?: number | null; // 0..1 distance along target edge
 }
 
 export interface Territory {

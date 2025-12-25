@@ -9,13 +9,15 @@
     "dev": "concurrently -n \"client,server\" -c \"cyan,yellow\" \"npm run dev --workspace @xeno/client\" \"npm run dev --workspace @xeno/server\"",
     "dev:client": "npm run dev --workspace @xeno/client",
     "dev:server": "npm run dev --workspace @xeno/server",
-    "build": "npm run build --workspaces --if-present"
+    "build": "npm run build --workspaces --if-present",
+    "test:shared": "node -r ts-node/register packages/shared/test/provinceToNode.test.ts"
   },
   "devDependencies": {
     "concurrently": "^8.2.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.0",
-    "@types/node": "^20.10.0"
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2"
   },
   "overrides": {
     "pixi.js": "7.0.5",

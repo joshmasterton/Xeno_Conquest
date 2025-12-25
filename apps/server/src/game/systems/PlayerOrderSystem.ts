@@ -13,13 +13,6 @@ export function processPlayerOrder(
   const currentEdge = edges.find((e) => e.id === unit.edgeId);
   if (!currentEdge) return; // Edge not found
 
-  // Evaluate both directions from the current edge position.
-  const distToSource = unit.distanceOnEdge;
-  const distToTarget = Math.max(0, currentEdge.length - unit.distanceOnEdge);
-
-  const pathFromSource = findPath(edges, currentEdge.sourceNodeId, order.destNodeId);
-  const pathFromTarget = findPath(edges, currentEdge.targetNodeId, order.destNodeId);
-
   const pathCost = (path: string[] | null, initialCost: number): number => {
     if (!path) return Number.POSITIVE_INFINITY;
     if (path.length === 1) return initialCost; // already there
@@ -32,56 +25,108 @@ export function processPlayerOrder(
     return cost;
   };
 
-  const costViaSource = pathCost(pathFromSource, distToSource);
-  const costViaTarget = pathCost(pathFromTarget, distToTarget);
+  // CASE A: Move to Node (legacy)
+  if (order.destNodeId) {
+    const distToSource = unit.distanceOnEdge;
+    const distToTarget = Math.max(0, currentEdge.length - unit.distanceOnEdge);
 
-  const useSource = costViaSource <= costViaTarget;
-  const chosenPath = useSource ? pathFromSource : pathFromTarget;
-  if (!chosenPath || chosenPath.length < 1) return; // No path
+    const pathFromSource = findPath(edges, currentEdge.sourceNodeId, order.destNodeId);
+    const pathFromTarget = findPath(edges, currentEdge.targetNodeId, order.destNodeId);
 
-  if (chosenPath.length === 1) {
-    // Destination is the nearest endpoint of the current edge.
-    const destNode = chosenPath[0];
-    if (destNode === currentEdge.targetNodeId) {
-      // Continue forward on current edge; ensure queue has the endpoint
-      unit.edgeId = currentEdge.id;
-      unit.pathQueue = [currentEdge.targetNodeId];
+    const costViaSource = pathCost(pathFromSource, distToSource);
+    const costViaTarget = pathCost(pathFromTarget, distToTarget);
+    const useSource = costViaSource <= costViaTarget;
+    const chosenPath = useSource ? pathFromSource : pathFromTarget;
+    if (!chosenPath || chosenPath.length < 1) return;
+
+    if (chosenPath.length === 1) {
+      const destNode = chosenPath[0];
+      if (destNode === currentEdge.targetNodeId) {
+        unit.edgeId = currentEdge.id;
+        unit.pathQueue = [currentEdge.targetNodeId];
+        unit.targetEdgeId = null;
+        unit.targetPercent = null;
+        return;
+      } else if (destNode === currentEdge.sourceNodeId) {
+        const reverseEdge = edges.find(
+          (e) => e.sourceNodeId === currentEdge.targetNodeId && e.targetNodeId === currentEdge.sourceNodeId
+        );
+        if (reverseEdge) {
+          unit.edgeId = reverseEdge.id;
+          unit.distanceOnEdge = currentEdge.length - unit.distanceOnEdge;
+        }
+        unit.pathQueue = [currentEdge.sourceNodeId];
+        unit.targetEdgeId = null;
+        unit.targetPercent = null;
+        return;
+      }
+      unit.pathQueue = [destNode];
+      unit.targetEdgeId = null;
+      unit.targetPercent = null;
       return;
-    } else if (destNode === currentEdge.sourceNodeId) {
-      // Go backward: flip to reverse edge (if available) and queue the source endpoint
+    }
+
+    if (!useSource) {
+      unit.edgeId = currentEdge.id;
+      unit.pathQueue = chosenPath.slice(1);
+      unit.targetEdgeId = null;
+      unit.targetPercent = null;
+      return;
+    }
+
+    const reverseEdge = edges.find(
+      (e) => e.sourceNodeId === currentEdge.targetNodeId && e.targetNodeId === currentEdge.sourceNodeId
+    );
+    if (reverseEdge) {
+      unit.edgeId = reverseEdge.id;
+      unit.distanceOnEdge = currentEdge.length - unit.distanceOnEdge;
+      unit.pathQueue = chosenPath.slice(1);
+      unit.targetEdgeId = null;
+      unit.targetPercent = null;
+      return;
+    }
+    unit.pathQueue = chosenPath.slice(1);
+    unit.targetEdgeId = null;
+    unit.targetPercent = null;
+    return;
+  }
+
+  // CASE B: Move to an edge position
+  if (order.targetEdgeId && order.targetPercent !== undefined) {
+    const targetEdge = edges.find((e) => e.id === order.targetEdgeId);
+    if (!targetEdge) return;
+
+    const distToSource = unit.distanceOnEdge;
+    const distToTarget = Math.max(0, currentEdge.length - unit.distanceOnEdge);
+    const pathToSource = findPath(edges, currentEdge.sourceNodeId, targetEdge.sourceNodeId);
+    const pathToTarget = findPath(edges, currentEdge.targetNodeId, targetEdge.targetNodeId);
+
+    const costViaSource = pathCost(pathToSource, distToSource);
+    const costViaTarget = pathCost(pathToTarget, distToTarget);
+    const approachFromSource = costViaSource <= costViaTarget;
+    const chosenPath = approachFromSource ? pathToSource : pathToTarget;
+    if (!chosenPath || chosenPath.length < 1) return;
+
+    // Maintain current edge if approaching from its target side
+    if (!approachFromSource) {
+      unit.edgeId = currentEdge.id;
+      unit.pathQueue = chosenPath.slice(1);
+      // Append step onto target edge toward its source (approach from target side)
+      unit.pathQueue.push(targetEdge.sourceNodeId);
+    } else {
       const reverseEdge = edges.find(
         (e) => e.sourceNodeId === currentEdge.targetNodeId && e.targetNodeId === currentEdge.sourceNodeId
       );
       if (reverseEdge) {
         unit.edgeId = reverseEdge.id;
-        unit.distanceOnEdge = currentEdge.length - unit.distanceOnEdge; // mirror position on reverse
+        unit.distanceOnEdge = currentEdge.length - unit.distanceOnEdge;
       }
-      unit.pathQueue = [currentEdge.sourceNodeId];
-      return;
+      unit.pathQueue = chosenPath.slice(1);
+      // Append step onto target edge toward its target (approach from source side)
+      unit.pathQueue.push(targetEdge.targetNodeId);
     }
-    // Fallback: just set the single-node queue
-    unit.pathQueue = [destNode];
-    return;
-  }
 
-  // If choosing via current target, stay on current edge and keep distance
-  if (!useSource) {
-    unit.edgeId = currentEdge.id;
-    unit.pathQueue = chosenPath.slice(1);
-    return;
+    unit.targetEdgeId = targetEdge.id;
+    unit.targetPercent = approachFromSource ? order.targetPercent : (1 - (order.targetPercent ?? 0));
   }
-
-  // Choosing via source: we need to travel back along the edge without snapping.
-  const reverseEdge = edges.find(
-    (e) => e.sourceNodeId === currentEdge.targetNodeId && e.targetNodeId === currentEdge.sourceNodeId
-  );
-  if (reverseEdge) {
-    unit.edgeId = reverseEdge.id;
-    unit.distanceOnEdge = currentEdge.length - unit.distanceOnEdge; // mirror position on reverse edge
-    unit.pathQueue = chosenPath.slice(1);
-    return;
-  }
-
-  // Fallback: if no reverse edge exists, stay on current edge and keep distance
-  unit.pathQueue = chosenPath.slice(1);
 }
