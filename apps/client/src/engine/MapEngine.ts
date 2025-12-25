@@ -46,6 +46,8 @@ export class MapEngine {
   private selectedUnitId: string | null = null;
   private selectedProvinceId: string | null = null;
   private nodeGraphics: Map<string, Graphics> = new Map();
+  private targetMarker: Graphics | null = null;
+  private selectionRing: Graphics | null = null; // Visual indicator for selected unit
 
   constructor(container: HTMLElement, opts?: { onMetrics?: (m: EngineMetrics) => void }) {
     this.metricsCb = opts?.onMetrics;
@@ -97,54 +99,90 @@ export class MapEngine {
     // Cast to any so TS accepts pixi-viewport's custom 'clicked' event
     (this.viewport as any).on('clicked', (e: any) => {
       const { x, y } = e.world;
+      const currentZoom = this.viewport.scale.x || 1;
 
-      // 1) Province click has priority
-      const hitProvince = this.provincesLayer?.hitTest(x, y);
-      if (hitProvince) {
-        const nodeId = ensureProvinceNodeId(hitProvince.id, worldGraph);
-        if (!nodeId) {
-          console.warn(`No mapped node for province ${hitProvince.id}`);
-          this.selectedProvinceId = null;
-          this.provincesLayer?.highlight(null);
-          return;
-        }
-
-        if (this.selectedProvinceId === hitProvince.id) {
-          this.selectedProvinceId = null;
-          this.provincesLayer?.highlight(null);
-          console.log(`Deselected: ${hitProvince.id}`);
-        } else {
-          this.selectedProvinceId = hitProvince.id;
-          this.provincesLayer?.highlight(hitProvince);
-          console.log(`Selected: ${hitProvince.id}`);
-
-          if (this.selectedUnitId) {
-            this.socket.emit(EVENTS.C_MOVE_ORDER, {
-              unitId: this.selectedUnitId,
-              destNodeId: nodeId,
-            });
-          }
-        }
-        return;
-      }
-
-      // 2) If no province hit, attempt road/edge click
+      // MODE A: Unit selected → issue orders, ignore province selection UI
       if (this.selectedUnitId) {
-        const edgeHit = findNearestEdge(this.edges, this.nodesById, x, y, 20);
+        // 1) Try precise road/edge click first
+        const edgeHit = findNearestEdge(this.edges, this.nodesById, x, y, 20 / currentZoom);
         if (edgeHit) {
-          console.log(`🛣 Road Order: ${edgeHit.edge.id} @ ${Math.round(edgeHit.t * 100)}%`);
+          console.log(`🛣 Move to Edge: ${edgeHit.edge.id} @ ${Math.round(edgeHit.t * 100)}%`);
           this.socket.emit(EVENTS.C_MOVE_ORDER, {
             unitId: this.selectedUnitId,
             targetEdgeId: edgeHit.edge.id,
             targetPercent: edgeHit.t,
           });
+
+          // Draw a temporary target marker at the clicked stop location
+          const start = this.nodesById.get(edgeHit.edge.sourceNodeId);
+          const end = this.nodesById.get(edgeHit.edge.targetNodeId);
+          if (start && end) {
+            const mx = start.x + (end.x - start.x) * edgeHit.t;
+            const my = start.y + (end.y - start.y) * edgeHit.t;
+
+            if (this.targetMarker) {
+              if (this.targetMarker.parent) this.targetMarker.parent.removeChild(this.targetMarker);
+              this.targetMarker.destroy();
+              this.targetMarker = null;
+            }
+            const marker = new Graphics();
+            marker.lineStyle(2, 0x00ff00, 0.95);
+            marker.drawCircle(mx, my, 10);
+            marker.moveTo(mx - 6, my);
+            marker.lineTo(mx + 6, my);
+            marker.moveTo(mx, my - 6);
+            marker.lineTo(mx, my + 6);
+            marker.alpha = 0.9;
+            this.viewport.addChild(marker);
+            this.targetMarker = marker;
+            window.setTimeout(() => {
+              if (this.targetMarker) {
+                if (this.targetMarker.parent) this.targetMarker.parent.removeChild(this.targetMarker);
+                this.targetMarker.destroy();
+                this.targetMarker = null;
+              }
+            }, 2000);
+          }
+
+          // Order sent → deselect unit immediately
+          this.clearUnitSelection();
           return;
         }
+
+        // 2) Else try province center (node) move
+        const province = this.provincesLayer?.hitTest(x, y);
+        if (province) {
+          const nodeId = ensureProvinceNodeId(province.id, worldGraph);
+          if (nodeId) {
+            console.log(`🏳 Move to Province: ${province.id}`);
+            this.socket.emit(EVENTS.C_MOVE_ORDER, {
+              unitId: this.selectedUnitId,
+              destNodeId: nodeId,
+            });
+          }
+          this.clearUnitSelection(); // Order or attempt handled → deselect unit
+          return;
+        }
+
+        // 3) Empty click → deselect unit
+        this.clearUnitSelection();
+        return;
       }
 
-      // 3) Clicked nothing → clear selection
-      this.selectedProvinceId = null;
-      this.provincesLayer?.highlight(null);
+      // MODE B: No unit selected → normal province selection
+      const hitProvince = this.provincesLayer?.hitTest(x, y);
+      if (hitProvince) {
+        if (this.selectedProvinceId === hitProvince.id) {
+          this.selectedProvinceId = null;
+          this.provincesLayer?.highlight(null);
+        } else {
+          this.selectedProvinceId = hitProvince.id;
+          this.provincesLayer?.highlight(hitProvince);
+        }
+      } else {
+        this.selectedProvinceId = null;
+        this.provincesLayer?.highlight(null);
+      }
     });
 
     // Render interactive node dots
@@ -227,7 +265,7 @@ export class MapEngine {
         g.interactive = true;
         g.cursor = 'pointer';
         g.on('pointerdown', () => {
-          this.selectedUnitId = serverUnit.id;
+          this.selectUnit(serverUnit.id);
         });
         this.viewport.addChild(g);
         this.unitSprites.set(serverUnit.id, g);
@@ -302,6 +340,56 @@ export class MapEngine {
     }
     console.log(`🎯 Issuing order: ${this.selectedUnitId} → ${nodeId}`);
     this.socket.emit(EVENTS.C_MOVE_ORDER, { unitId: this.selectedUnitId, destNodeId: nodeId });
-    this.selectedUnitId = null; // Deselect after order
+    this.clearUnitSelection(); // Deselect after order
   };
+
+  private selectUnit(unitId: string) {
+    // Clear any prior selection ring
+    this.clearSelectionRing();
+
+    this.selectedUnitId = unitId;
+    this.selectedProvinceId = null;
+    this.provincesLayer?.highlight(null);
+
+    // Draw selection ring around the unit (bright green circle)
+    const sprite = this.unitSprites.get(unitId);
+    if (sprite) {
+      const ring = new Graphics();
+      ring.lineStyle(2, 0x00ff00, 1.0);
+      ring.drawCircle(0, 0, 16);
+      ring.alpha = 0.95;
+      sprite.addChild(ring);
+      this.selectionRing = ring;
+    }
+
+    console.log(`Selected Unit: ${unitId}`);
+    // Update UI immediately
+    this.updateMetrics();
+  }
+
+  private clearUnitSelection() {
+    this.clearSelectionRing();
+    this.selectedUnitId = null;
+    console.log('Unit Deselected');
+    // Update UI immediately
+    this.updateMetrics();
+  }
+
+  private clearSelectionRing() {
+    if (this.selectionRing && this.selectionRing.parent) {
+      this.selectionRing.parent.removeChild(this.selectionRing);
+      this.selectionRing.destroy();
+      this.selectionRing = null;
+    }
+  }
+
+  private updateMetrics() {
+    const zoom = Number(this.viewport.scale.x.toFixed(2));
+    this.metricsCb?.({
+      fps: this.frames,
+      zoom,
+      unitCount: this.unitSprites.size,
+      selectedUnit: this.selectedUnitId,
+    });
+  }
 }

@@ -262,14 +262,28 @@ async function processMap() {
       const nodeB = hexToNode.get(idB);
       if (nodeA && nodeB) {
         const dist = Math.sqrt(Math.pow(nodeB.x - nodeA.x, 2) + Math.pow(nodeB.y - nodeA.y, 2));
+
+        // Forward edge A -> B
         edges.push({
-          id: [idA, idB].sort().join('-'),
-          sourceNodeId: idA, targetNodeId: idB, length: dist
+          id: `${idA}-${idB}`,
+          sourceNodeId: idA,
+          targetNodeId: idB,
+          length: dist,
         });
-        const tA = territories.find(t => t.id === idA);
-        const tB = territories.find(t => t.id === idB);
-        if (tA) tA.neighbors.push(idB);
-        if (tB) tB.neighbors.push(idA);
+
+        // Reverse edge B -> A
+        edges.push({
+          id: `${idB}-${idA}`,
+          sourceNodeId: idB,
+          targetNodeId: idA,
+          length: dist,
+        });
+
+        // Update neighbors without duplicates
+        const tA = territories.find((t) => t.id === idA);
+        const tB = territories.find((t) => t.id === idB);
+        if (tA && !tA.neighbors.includes(idB)) tA.neighbors.push(idB);
+        if (tB && !tB.neighbors.includes(idA)) tB.neighbors.push(idA);
       }
     }
 
