@@ -1,10 +1,11 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import type { ClientToServerEvents, ServerToClientEvents } from '@xeno/shared';
 import { GameLoop } from './game/GameLoop';
 
 const httpServer = createServer();
 
-const io = new Server(httpServer, {
+const io: Server<ClientToServerEvents, ServerToClientEvents> = new Server(httpServer, {
 	cors: {
 		origin: '*',
 		methods: ['GET', 'POST']

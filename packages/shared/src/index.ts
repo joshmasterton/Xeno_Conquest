@@ -1,4 +1,13 @@
-import worldGraph from './data/world-graph.json';
+import worldGraphJson from './data/world-graph.json';
+import type { WorldGraph } from './types/world';
 
-export { worldGraph };
+export const worldGraph = worldGraphJson as WorldGraph;
 export * from './types/map';
+export * from './types/world';
+export * from './config/constants';
+export * from './protocol/events';
+
+// Provinces (territories) metadata, if available
+import provincesJson from './data/provinces.json';
+import type { Territory } from './types/map';
+export const provinces = provincesJson as Territory[];

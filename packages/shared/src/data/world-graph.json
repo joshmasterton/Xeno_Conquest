@@ -1,11 +1,6 @@
 {
   "nodes": [
     {
-      "id": "#000000",
-      "x": 2114,
-      "y": 2106
-    },
-    {
       "id": "#eda400",
       "x": 642,
       "y": 878
@@ -103,30 +98,6 @@
   ],
   "edges": [
     {
-      "id": "#000000-#eda400",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#eda400",
-      "length": 1916.9684400114677
-    },
-    {
-      "id": "#000000-#716388",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#716388",
-      "length": 1611.603239013871
-    },
-    {
-      "id": "#000000-#2721d2",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#2721d2",
-      "length": 1528.2319850075119
-    },
-    {
-      "id": "#000000-#a28f55",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#a28f55",
-      "length": 1294.4002472187651
-    },
-    {
       "id": "#2721d2-#a28f55",
       "sourceNodeId": "#2721d2",
       "targetNodeId": "#a28f55",
@@ -145,22 +116,10 @@
       "length": 463.6938645270174
     },
     {
-      "id": "#000000-#dc3a01",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#dc3a01",
-      "length": 1130.7554996549873
-    },
-    {
       "id": "#716388-#a28f55",
       "sourceNodeId": "#716388",
       "targetNodeId": "#a28f55",
       "length": 415.3949927478664
-    },
-    {
-      "id": "#000000-#418802",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#418802",
-      "length": 723.4099805780952
     },
     {
       "id": "#418802-#a28f55",
@@ -181,22 +140,10 @@
       "length": 549.1812087098392
     },
     {
-      "id": "#000000-#e15c01",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#e15c01",
-      "length": 747.2295497368931
-    },
-    {
       "id": "#418802-#e15c01",
       "sourceNodeId": "#418802",
       "targetNodeId": "#e15c01",
       "length": 554.3013620766235
-    },
-    {
-      "id": "#000000-#f803bc",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#f803bc",
-      "length": 1354.8638307962908
     },
     {
       "id": "#4d7e02-#716388",
@@ -229,28 +176,10 @@
       "length": 537.9637534258233
     },
     {
-      "id": "#000000-#d0b700",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#d0b700",
-      "length": 712.447191025412
-    },
-    {
       "id": "#418802-#d0b700",
       "sourceNodeId": "#418802",
       "targetNodeId": "#d0b700",
       "length": 406.15391171328145
-    },
-    {
-      "id": "#000000-#4d7e02",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#4d7e02",
-      "length": 1421.2163804291026
-    },
-    {
-      "id": "#000000-#c3ac34",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#c3ac34",
-      "length": 1370.678664020127
     },
     {
       "id": "#716388-#c3ac34",
@@ -283,12 +212,6 @@
       "length": 264.6828290615015
     },
     {
-      "id": "#000000-#a0467c",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#a0467c",
-      "length": 599.0676088723209
-    },
-    {
       "id": "#a0467c-#a24779",
       "sourceNodeId": "#a0467c",
       "targetNodeId": "#a24779",
@@ -299,12 +222,6 @@
       "sourceNodeId": "#735a02",
       "targetNodeId": "#c3ac34",
       "length": 655.0671721281719
-    },
-    {
-      "id": "#000000-#735a02",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#735a02",
-      "length": 1146.0737323575652
     },
     {
       "id": "#a1467b-#e15c01",
@@ -331,28 +248,22 @@
       "length": 956.4627541101639
     },
     {
-      "id": "#000000-#de8059",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#de8059",
-      "length": 667.2705598181295
-    },
-    {
       "id": "#418802-#de8059",
       "sourceNodeId": "#418802",
       "targetNodeId": "#de8059",
       "length": 1208.0695344225844
     },
     {
-      "id": "#418802-#a0467c",
-      "sourceNodeId": "#418802",
-      "targetNodeId": "#a0467c",
-      "length": 969.4885249449835
-    },
-    {
       "id": "#a1467b-#a24779",
       "sourceNodeId": "#a1467b",
       "targetNodeId": "#a24779",
       "length": 39.66106403010388
+    },
+    {
+      "id": "#418802-#a0467c",
+      "sourceNodeId": "#418802",
+      "targetNodeId": "#a0467c",
+      "length": 969.4885249449835
     },
     {
       "id": "#a0467c-#de8059",
@@ -367,28 +278,10 @@
       "length": 511.2582517671475
     },
     {
-      "id": "#000000-#03c305",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#03c305",
-      "length": 1139.475756653032
-    },
-    {
-      "id": "#000000-#e43800",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#e43800",
-      "length": 759.455726161835
-    },
-    {
       "id": "#735a02-#ccd417",
       "sourceNodeId": "#735a02",
       "targetNodeId": "#ccd417",
       "length": 693.0028859968767
-    },
-    {
-      "id": "#000000-#ccd417",
-      "sourceNodeId": "#000000",
-      "targetNodeId": "#ccd417",
-      "length": 1434.545921189001
     },
     {
       "id": "#de8059-#e43800",

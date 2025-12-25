@@ -1,0 +1,14 @@
+export const TICK_RATE = 100; // ms per server tick
+export const WORLD_SIZE = 4000; // world width/height in pixels
+export const COMBAT_RADIUS = 50; // pixels; proximity threshold for combat trigger
+export const UNIT_BASE_SPEED = 60; // pixels per second for standard units
+
+// Designated base nodes (spawn points) by node id
+// These should correspond to nodes present in world-graph.json
+export const BASE_NODE_IDS = [
+	'#000000',
+	'#eda400',
+	'#716388',
+	'#2721d2',
+	'#a28f55',
+];
