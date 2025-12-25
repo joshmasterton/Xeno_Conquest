@@ -153,8 +153,8 @@ export class MapEngine {
       this.railsLayer.alpha = macro ? 0.15 : 0.3;
     }
     if (this.provincesLayer) {
-      // Show province borders when zoomed in (gameplay), hide at extreme macro view
-      this.provincesLayer.setVisible(currentZoom > 0.05);
+      // Always show province borders
+      this.provincesLayer.setVisible(true);
     }
   };
 

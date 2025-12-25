@@ -28,7 +28,7 @@ export interface Territory {
 	neighbors: string[]; // adjacent territory ids
 	radius: number; // approximate radius for macro rendering
 	isWater?: boolean; // true if marked as water by mask
-	// Optional polygon contour outlining the province border in image/world coords
-	contour?: [number, number][];
+	// Multiple polygon contours outlining province islands (image/world coords)
+	contours?: [number, number][][];
 	resources?: { [key: string]: number }; // optional resource values
 }

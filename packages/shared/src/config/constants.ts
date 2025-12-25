@@ -1,5 +1,5 @@
 export const TICK_RATE = 100; // ms per server tick
-export const WORLD_SIZE = 4000; // world width/height in pixels
+export const WORLD_SIZE = 4096; // world width/height in pixels (matches assets)
 export const COMBAT_RADIUS = 50; // pixels; proximity threshold for combat trigger
 export const UNIT_BASE_SPEED = 60; // pixels per second for standard units
 
