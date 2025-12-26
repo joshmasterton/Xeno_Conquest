@@ -33,16 +33,34 @@ export interface EngineMetrics {
 // ✅ NEW: Define Interaction Modes
 export type InteractionMode = 'SELECT' | 'TARGETING';
 
-export class MapEngine {
+// ✅ Public interface for helper modules (no 'any' casts)
+export interface IMapEngineState {
+  readonly viewport: Viewport;
+  readonly activeSegments: Map<string, MovementSegment>;
+  readonly unitSprites: Map<string, Graphics>;
+  readonly flashTimers: Map<string, number>;
+  readonly flashHalos: Map<string, Graphics>;
+  readonly railsLayer: Graphics;
+  readonly provincesLayer: ProvincesLayer | null;
+  readonly selectedUnitId: string | null;
+  incrementFrames(): void;
+  getFrames(): number;
+  getLastSample(): number;
+  setLastSample(time: number): void;
+  notifyMetrics(data: EngineMetrics): void;
+  selectUnit(unitId: string | null): void;
+}
+
+export class MapEngine implements IMapEngineState {
   private app: Application;
-  private viewport: Viewport;
+  public readonly viewport: Viewport; // ✅ Public for interface
   private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
-  private unitSprites: Map<string, Graphics> = new Map();
-  private activeSegments: Map<string, MovementSegment> = new Map();
-  private flashTimers: Map<string, number> = new Map();
-  private flashHalos: Map<string, Graphics> = new Map();
-  private railsLayer: Graphics;
-  private provincesLayer: ProvincesLayer | null = null;
+  public readonly unitSprites: Map<string, Graphics> = new Map(); // ✅ Public for interface
+  public readonly activeSegments: Map<string, MovementSegment> = new Map(); // ✅ Public for interface
+  public readonly flashTimers: Map<string, number> = new Map(); // ✅ Public for interface
+  public readonly flashHalos: Map<string, Graphics> = new Map(); // ✅ Public for interface
+  public readonly railsLayer: Graphics; // ✅ Public for interface
+  public provincesLayer: ProvincesLayer | null = null; // ✅ Public for interface
   
   // Callbacks
   private metricsCb?: (m: EngineMetrics) => void;
@@ -55,7 +73,7 @@ export class MapEngine {
   
   // ✅ STATE
   private interactionMode: InteractionMode = 'SELECT';
-  private selectedUnitId: string | null = null;
+  public selectedUnitId: string | null = null; // ✅ Public for interface
   private selectedProvinceId: string | null = null;
   private nodeGraphics: Map<string, Graphics> = new Map();
   private selectionRing: Graphics | null = null;
@@ -157,8 +175,15 @@ export class MapEngine {
     });
   }
 
-  // ✅ HELPER: State Management
-  private selectUnit(unitId: string | null) {
+  // ✅ IMapEngineState Implementation (public API for helpers)
+  incrementFrames(): void { this.frames++; }
+  getFrames(): number { return this.frames; }
+  getLastSample(): number { return this.lastSample; }
+  setLastSample(time: number): void { this.lastSample = time; }
+  notifyMetrics(data: EngineMetrics): void { this.metricsCb?.(data); }
+
+  // ✅ HELPER: State Management (now public for interface)
+  public selectUnit(unitId: string | null) {
     this.clearSelectionRing();
     this.selectedUnitId = unitId;
     this.selectedProvinceId = null;

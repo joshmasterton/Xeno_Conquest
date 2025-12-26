@@ -25,6 +25,7 @@ function createBidirectionalEdges(edges: RoadEdge[]): RoadEdge[] {
 export class GameLoop {
 	private readonly units: Unit[];
 	private readonly edges: RoadEdge[];
+	private readonly edgesMap: Map<string, RoadEdge>; // ✅ O(1) lookup
 	private readonly io: Server<ClientToServerEvents, ServerToClientEvents>;
 	private readonly nodesById: Map<string, RoadNode>;
 	private lastTick = Date.now();
@@ -32,6 +33,7 @@ export class GameLoop {
 	constructor(io: Server<ClientToServerEvents, ServerToClientEvents>) {
 		this.io = io;
 		this.edges = createBidirectionalEdges(worldGraph.edges);
+		this.edgesMap = new Map(this.edges.map((e) => [e.id, e])); // ✅ Build O(1) map
 		this.nodesById = new Map(worldGraph.nodes.map((n) => [n.id, n]));
 		console.log(`Loaded ${this.edges.length} edges from world graph.`);
 
@@ -79,7 +81,7 @@ export class GameLoop {
 			this.lastTick = now;
 
 			for (const unit of this.units) {
-				const edge = this.edges.find((e) => e.id === unit.edgeId);
+				const edge = this.edgesMap.get(unit.edgeId); // ✅ O(1)
 				if (!edge) continue;
 
 				updateUnitPosition(unit, edge, this.edges, deltaTime);
@@ -94,7 +96,7 @@ export class GameLoop {
 			// Build interpolation/idle segments for visualization
 			const segments: MovementSegment[] = [];
 			for (const unit of this.units) {
-				const edge = this.edges.find((e) => e.id === unit.edgeId);
+				const edge = this.edgesMap.get(unit.edgeId); // ✅ O(1)
 				if (!edge) continue;
 
 				const isMoving = !!(unit.pathQueue && unit.pathQueue.length > 0);

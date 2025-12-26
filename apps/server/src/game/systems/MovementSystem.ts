@@ -6,55 +6,83 @@ export function updateUnitPosition(
 	allEdges: RoadEdge[],
 	deltaTime: number
 ): Unit {
-	// Only move if unit has a destination in pathQueue
+	// Helper: Check if two edges are physically the same road (Forward or Reverse)
+	const isSameRoad = (idA: string, idB: string) => {
+		if (idA === idB) return true;
+		const a = allEdges.find(e => e.id === idA);
+		const b = allEdges.find(e => e.id === idB);
+		if (!a || !b) return false;
+		// Check if they connect the same nodes (regardless of direction)
+		return (a.sourceNodeId === b.sourceNodeId && a.targetNodeId === b.targetNodeId) ||
+			   (a.sourceNodeId === b.targetNodeId && a.targetNodeId === b.sourceNodeId);
+	};
+
+	// 1. IDLE CHECK
 	if (!unit.pathQueue || unit.pathQueue.length === 0) {
-		// Allow precise target stop even when no queued path (already on target edge)
-		if (unit.targetEdgeId && unit.targetPercent != null && unit.edgeId === unit.targetEdgeId) {
-			const stopDistance = edge.length * unit.targetPercent;
-			if (unit.distanceOnEdge > stopDistance) {
+		// Ensure we clamp to target if we are sitting on it
+		if (unit.targetEdgeId && unit.targetPercent != null && isSameRoad(unit.edgeId, unit.targetEdgeId)) {
+			// Normalize stop distance to CURRENT edge length
+			const targetIsReverse = unit.edgeId !== unit.targetEdgeId;
+			const localTargetPercent = targetIsReverse ? (1.0 - unit.targetPercent) : unit.targetPercent;
+			const stopDistance = edge.length * localTargetPercent;
+			
+			// Snap if we drifted past
+			if (Math.abs(unit.distanceOnEdge - stopDistance) < 1.0) {
 				unit.distanceOnEdge = stopDistance;
 			}
 		}
-		return unit; // Idle; don't move
+		return unit; 
 	}
 
 	unit.distanceOnEdge += unit.speed * deltaTime;
 
-	// Stop condition: on target edge and crossing targetPercent
-	if (unit.targetEdgeId && unit.targetPercent != null && unit.edgeId === unit.targetEdgeId) {
-		const stopDistance = edge.length * unit.targetPercent;
+	// 2. STOP CHECK (Before moving nodes)
+	if (unit.targetEdgeId && unit.targetPercent != null && isSameRoad(unit.edgeId, unit.targetEdgeId)) {
+		const targetIsReverse = unit.edgeId !== unit.targetEdgeId;
+		const localTargetPercent = targetIsReverse ? (1.0 - unit.targetPercent) : unit.targetPercent;
+		const stopDistance = edge.length * localTargetPercent;
+
+		// If we crossed the point (forward movement)
 		if (unit.distanceOnEdge >= stopDistance) {
 			unit.distanceOnEdge = stopDistance;
-			unit.pathQueue = []; // clear any remaining path to hold position
-			return unit; // hard stop
+			unit.pathQueue = []; // HARD STOP
+			return unit; 
 		}
 	}
 
 	let currentEdge = edge;
-	// Consume overshoot across edges following the pathQueue deterministically
+
+	// 3. NODE TRAVERSAL
 	while (unit.distanceOnEdge >= currentEdge.length) {
 		const excess = unit.distanceOnEdge - currentEdge.length;
 		const atNodeId = currentEdge.targetNodeId;
 
-		// If we arrived at the head of the queue, pop it
+		// Pop queue
 		if (unit.pathQueue && unit.pathQueue.length > 0 && unit.pathQueue[0] === atNodeId) {
 			unit.pathQueue.shift();
 		}
 
-		// If no more steps, clamp at the end of the edge
 		if (!unit.pathQueue || unit.pathQueue.length === 0) {
 			unit.distanceOnEdge = currentEdge.length;
 			return unit;
 		}
 
-		// Determine the deterministic next edge to the next target node in queue
 		const nextTargetNodeId = unit.pathQueue[0];
-		const nextEdge = allEdges.find(
-			(e) => e.sourceNodeId === atNodeId && e.targetNodeId === nextTargetNodeId
+
+		// FIND NEXT EDGE
+		// Prefer the specific target edge ID if it matches
+		let nextEdge = allEdges.find(
+			(e) => e.id === unit.targetEdgeId && e.sourceNodeId === atNodeId && e.targetNodeId === nextTargetNodeId
 		);
 
+		// Fallback to any valid edge
 		if (!nextEdge) {
-			// Path invalid or broken; stop at current node
+			nextEdge = allEdges.find(
+				(e) => e.sourceNodeId === atNodeId && e.targetNodeId === nextTargetNodeId
+			);
+		}
+
+		if (!nextEdge) {
 			unit.distanceOnEdge = currentEdge.length;
 			return unit;
 		}
@@ -63,24 +91,17 @@ export function updateUnitPosition(
 		unit.distanceOnEdge = excess;
 		currentEdge = nextEdge;
 
-		// If we just moved onto the target edge, enforce stop immediately
-		if (unit.targetEdgeId && unit.targetPercent != null && currentEdge.id === unit.targetEdgeId) {
-			const stopDistance = currentEdge.length * unit.targetPercent;
+		// 4. STOP CHECK (After entering new edge)
+		if (unit.targetEdgeId && unit.targetPercent != null && isSameRoad(unit.edgeId, unit.targetEdgeId)) {
+			const targetIsReverse = unit.edgeId !== unit.targetEdgeId;
+			const localTargetPercent = targetIsReverse ? (1.0 - unit.targetPercent) : unit.targetPercent;
+			const stopDistance = currentEdge.length * localTargetPercent;
+
 			if (unit.distanceOnEdge >= stopDistance) {
 				unit.distanceOnEdge = stopDistance;
 				unit.pathQueue = [];
 				break;
 			}
-		}
-	}
-
-	// Post-traversal: if on target edge, re-check stop condition
-	if (unit.targetEdgeId && unit.targetPercent != null && currentEdge.id === unit.targetEdgeId) {
-		const stopDistance = currentEdge.length * unit.targetPercent;
-		if (unit.distanceOnEdge >= stopDistance) {
-			unit.distanceOnEdge = stopDistance;
-			unit.pathQueue = [];
-			return unit;
 		}
 	}
 

@@ -1,27 +1,26 @@
 import { Graphics } from 'pixi.js';
 import type { ServerGameTick } from '@xeno/shared';
-import type { MapEngine } from './MapEngine';
+import type { MapEngine, IMapEngineState } from './MapEngine';
 
-export function handleTick(host: MapEngine) {
-  (host as any).frames++;
+export function handleTick(host: IMapEngineState & MapEngine) {
+  host.incrementFrames();
   const now = performance.now();
-  const lastSample = (host as any).lastSample;
+  const lastSample = host.getLastSample();
   if (now - lastSample >= 1000) {
-    const zoom = Number((host as any).viewport.scale.x.toFixed(2));
-    (host as any).metricsCb?.({
-      fps: (host as any).frames,
+    const zoom = Number(host.viewport.scale.x.toFixed(2));
+    host.notifyMetrics({
+      fps: host.getFrames(),
       zoom,
-      unitCount: (host as any).unitSprites.size,
-      selectedUnit: (host as any).selectedUnitId,
+      unitCount: host.unitSprites.size,
+      selectedUnit: host.selectedUnitId,
     });
-    (host as any).frames = 0;
-    (host as any).lastSample = now;
+    host.setLastSample(now);
   }
 
   // Interpolate unit positions from active segments
   const tNow = Date.now();
-  for (const [unitId, seg] of (host as any).activeSegments) {
-    const sprite: Graphics | undefined = (host as any).unitSprites.get(unitId);
+  for (const [unitId, seg] of host.activeSegments) {
+    const sprite: Graphics | undefined = host.unitSprites.get(unitId);
     if (!sprite) continue;
     if (seg.durationMs === 0) {
       sprite.position.set(seg.start.x, seg.start.y);
@@ -35,11 +34,11 @@ export function handleTick(host: MapEngine) {
   }
 
   // LOD
-  const currentZoom = (host as any).viewport.scale.x;
+  const currentZoom = host.viewport.scale.x;
   const macro = currentZoom < 0.2;
-  for (const sprite of (host as any).unitSprites.values()) {
+  for (const sprite of host.unitSprites.values()) {
     (sprite as Graphics).visible = !macro;
   }
-  if ((host as any).railsLayer) (host as any).railsLayer.alpha = macro ? 0.15 : 0.3;
-  if ((host as any).provincesLayer) (host as any).provincesLayer.setVisible(true);
+  if (host.railsLayer) host.railsLayer.alpha = macro ? 0.15 : 0.3;
+  if (host.provincesLayer) host.provincesLayer.setVisible(true);
 }
