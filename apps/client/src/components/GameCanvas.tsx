@@ -1,36 +1,101 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { TICK_RATE } from '@xeno/shared';
 import { MapEngine, type EngineMetrics } from '../engine/MapEngine';
 
 export const GameCanvas = () => {
-  const canvasRef = useRef<HTMLDivElement>(null);
+  const divRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<MapEngine | null>(null);
-  const [metrics, setMetrics] = useState<EngineMetrics>({ fps: 0, zoom: 1, unitCount: 0, selectedUnit: null });
+  const [metrics, setMetrics] = useState<EngineMetrics | null>(null);
+  
+  // ✅ NEW: UI State
+  const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
+  const [isTargeting, setIsTargeting] = useState(false);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-    const engine = new MapEngine(canvasRef.current, { onMetrics: setMetrics });
+    if (!divRef.current) return;
+
+    // Initialize Engine
+    const engine = new MapEngine(divRef.current, {
+      onMetrics: (m) => setMetrics(m),
+      // ✅ Connect Engine Selection to React State
+      onSelectionChange: (unitId) => {
+        setSelectedUnit(unitId);
+        setIsTargeting(false); // Reset targeting when selection changes
+      }
+    });
+    
     engineRef.current = engine;
-    return () => engine.destroy();
+
+    return () => {
+      engine.destroy();
+    };
   }, []);
 
+  // ✅ UI Action: Move Button Clicked
+  const handleMoveClick = () => {
+    if (engineRef.current) {
+      engineRef.current.enterTargetingMode();
+      setIsTargeting(true);
+    }
+  };
+
   return (
-    <div ref={canvasRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
-      <div style={{ position: 'absolute', top: 8, left: 8, padding: '8px 12px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontFamily: 'monospace', fontSize: 12, borderRadius: 4, lineHeight: 1.6 }}>
-        <div>FPS: {metrics.fps}</div>
-        <div>Zoom: {metrics.zoom}x</div>
-        <div>Units: {metrics.unitCount}</div>
-        <div>Tick: {TICK_RATE} ms</div>
+    <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+      
+      {/* 1. The Map */}
+      <div ref={divRef} style={{ width: '100%', height: '100%' }} />
+
+      {/* 2. Debug Overlay (Top Left) */}
+      <div style={{
+        position: 'absolute', top: 10, left: 10,
+        background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px',
+        pointerEvents: 'none', userSelect: 'none'
+      }}>
+        <div>FPS: {metrics?.fps}</div>
+        <div>Zoom: {metrics?.zoom}</div>
+        <div>Units: {metrics?.unitCount}</div>
       </div>
-      <div style={{ position: 'absolute', bottom: 8, left: 8, padding: '12px 16px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontFamily: 'monospace', fontSize: 13, borderRadius: 4, minWidth: 200 }}>
-        <div style={{ marginBottom: 8, fontSize: 14, fontWeight: 'bold' }}>Controls</div>
-        <div style={{ color: metrics.selectedUnit ? '#ffaa00' : '#999', marginBottom: 6 }}>
-          {metrics.selectedUnit ? `✓ Selected: ${metrics.selectedUnit}` : '① Click orange unit to select'}
+
+      {/* 3. ✅ COMMAND BAR (Bottom Right) */}
+      {selectedUnit && (
+        <div style={{
+          position: 'absolute', bottom: 20, right: 20,
+          background: 'rgba(30,30,30,0.9)', padding: '15px',
+          border: '2px solid #555', borderRadius: '8px',
+          display: 'flex', flexDirection: 'column', gap: '10px'
+        }}>
+          <div style={{ color: '#fff', fontWeight: 'bold' }}>
+            Unit Selected: {selectedUnit.substring(0, 8)}...
+          </div>
+
+          {!isTargeting ? (
+            <button 
+              onClick={handleMoveClick}
+              style={{
+                background: '#ffaa00', color: 'black', fontWeight: 'bold',
+                padding: '10px 20px', border: 'none', borderRadius: '4px',
+                cursor: 'pointer', fontSize: '16px'
+              }}
+            >
+              MOVE UNIT
+            </button>
+          ) : (
+            <div style={{ 
+              color: '#00ff00', fontWeight: 'bold', fontSize: '16px',
+              animation: 'pulse 1s infinite'
+            }}>
+              🎯 SELECT TARGET...
+            </div>
+          )}
         </div>
-        <div style={{ color: metrics.selectedUnit ? '#88ff88' : '#666' }}>
-          {metrics.selectedUnit ? '② Click blue node to move' : '   (Select a unit first)'}
-        </div>
-      </div>
+      )}
+
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };
