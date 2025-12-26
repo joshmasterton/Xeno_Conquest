@@ -148,7 +148,10 @@ export class MapEngine implements IMapEngineState {
     // Socket
     this.socket = io('http://localhost:3000') as Socket<ServerToClientEvents, ClientToServerEvents>;
     this.socket.on('connect', () => console.log('✅ Connected'));
-    this.socket.on(EVENTS.S_GAME_TICK, (payload) => handleGameTick(this, payload));
+    this.socket.on(EVENTS.S_GAME_TICK, (payload) => {
+      this.provincesLayer?.updateNodes(payload.nodes);
+      handleGameTick(this, payload);
+    });
     this.socket.on(EVENTS.COMBAT_EVENT, (payload: { pairs: { aId: string; bId: string }[] }) => {
       for (const pair of payload.pairs) {
         flashUnit(this, pair.aId);

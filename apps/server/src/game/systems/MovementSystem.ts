@@ -6,6 +6,7 @@ export function updateUnitPosition(
 	allEdges: RoadEdge[],
 	deltaTime: number
 ): Unit {
+	if (unit.state === 'COMBAT') return unit;
 	// Helper: Check if two edges are physically the same road (Forward or Reverse)
 	const isSameRoad = (idA: string, idB: string) => {
 		if (idA === idB) return true;

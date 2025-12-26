@@ -2,24 +2,93 @@ import { Graphics } from 'pixi.js';
 import type { ServerGameTick } from '@xeno/shared';
 import type { MapEngine, IMapEngineState } from './MapEngine';
 
+type UnitSprite = Graphics & {
+  hpBarBg?: Graphics;
+  hpBarFg?: Graphics;
+  combatIcon?: Graphics;
+};
+
+function clamp01(value: number): number {
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
+function ensureUnitSprite(host: IMapEngineState & MapEngine, serverUnit: { id: string; ownerId: string | undefined }): UnitSprite {
+  const existing = host.unitSprites.get(serverUnit.id) as UnitSprite | undefined;
+  if (existing) return existing;
+
+  const g = new Graphics() as UnitSprite;
+  const isPlayerUnit = serverUnit.ownerId && serverUnit.ownerId.startsWith('player');
+  const color = isPlayerUnit ? 0xffaa00 : 0xff0000;
+  g.beginFill(color);
+  g.drawCircle(0, 0, 8);
+  g.endFill();
+  g.interactive = true;
+  g.cursor = 'pointer';
+  g.on('pointerdown', () => {
+    host.selectUnit(serverUnit.id);
+  });
+
+  // Health bar background
+  const barBg = new Graphics();
+  barBg.beginFill(0x222222, 0.9);
+  barBg.drawRect(0, 0, 16, 3);
+  barBg.endFill();
+  barBg.position.set(-8, -14);
+  g.addChild(barBg);
+  g.hpBarBg = barBg;
+
+  // Health bar foreground
+  const barFg = new Graphics();
+  barFg.beginFill(0x00cc44, 0.95);
+  barFg.drawRect(0, 0, 16, 3);
+  barFg.endFill();
+  barFg.position.set(-8, -14);
+  barFg.pivot.set(0, 0);
+  g.addChild(barFg);
+  g.hpBarFg = barFg;
+
+  // Combat icon (sword-ish mark)
+  const combatIcon = new Graphics();
+  combatIcon.lineStyle(2, 0xff4444, 0.9);
+  combatIcon.moveTo(-2, -10);
+  combatIcon.lineTo(0, -6);
+  combatIcon.lineTo(2, -10);
+  combatIcon.lineTo(0, -4);
+  combatIcon.lineTo(0, -2);
+  combatIcon.visible = false;
+  g.addChild(combatIcon);
+  g.combatIcon = combatIcon;
+
+  host.viewport.addChild(g);
+  host.unitSprites.set(serverUnit.id, g);
+
+  return g;
+}
+
+function updateUnitSprite(sprite: UnitSprite, serverUnit: { hp?: number; maxHp?: number; state?: string }): void {
+  const maxHp = serverUnit.maxHp ?? 100;
+  const hp = serverUnit.hp ?? maxHp;
+  const ratio = maxHp > 0 ? clamp01(hp / maxHp) : 0;
+
+  if (sprite.hpBarFg) {
+    sprite.hpBarFg.scale.x = ratio;
+    // Shift the bar color toward red as HP falls
+    const low = ratio < 0.3;
+    sprite.hpBarFg.tint = low ? 0xff4444 : 0x00cc44;
+  }
+
+  if (sprite.combatIcon) {
+    sprite.combatIcon.visible = serverUnit.state === 'COMBAT';
+  }
+}
+
 export function handleGameTick(host: IMapEngineState & MapEngine, data: ServerGameTick) {
   // Ensure sprites exist for all units
   for (const serverUnit of data.units) {
-    if (!host.unitSprites.has(serverUnit.id)) {
-      const g = new Graphics();
-      const isPlayerUnit = serverUnit.ownerId && serverUnit.ownerId.startsWith('player');
-      const color = isPlayerUnit ? 0xffaa00 : 0xff0000;
-      g.beginFill(color);
-      g.drawCircle(0, 0, 8);
-      g.endFill();
-      g.interactive = true;
-      g.cursor = 'pointer';
-      g.on('pointerdown', () => {
-        host.selectUnit(serverUnit.id);
-      });
-      host.viewport.addChild(g);
-      host.unitSprites.set(serverUnit.id, g);
-    }
+    const sprite = ensureUnitSprite(host, serverUnit);
+    updateUnitSprite(sprite, serverUnit);
   }
   // Update segments (replace per tick)
   host.activeSegments.clear();

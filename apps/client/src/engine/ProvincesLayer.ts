@@ -1,12 +1,18 @@
 import { Graphics, Container } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { type Territory } from '@xeno/shared';
+import { type Territory, type RoadNode } from '@xeno/shared';
+
+const OWNER_COLORS: Record<string, number> = {
+  'player-1': 0x3388ff,
+  'ai_neutral': 0xff3333,
+};
 
 export class ProvincesLayer {
   public container: Container;
   private polygons: Graphics;
   private highlightGraphics: Graphics;
   private items: Territory[] = [];
+  private ownerMap = new Map<string, string>();
 
   constructor(viewport: Viewport) {
     this.container = new Container();
@@ -30,6 +36,14 @@ export class ProvincesLayer {
 
   public setProvinces(data: Territory[]) {
     this.items = data;
+    this.drawPolygons();
+  }
+
+  public updateNodes(nodes: RoadNode[]) {
+    this.ownerMap.clear();
+    nodes.forEach((n) => {
+      if (n.ownerId) this.ownerMap.set(n.id, n.ownerId);
+    });
     this.drawPolygons();
   }
 
@@ -78,8 +92,10 @@ export class ProvincesLayer {
       const contours = t.contours || (legacyContour ? [legacyContour] : []);
       if (!contours.length) continue;
 
-      const hexColor = parseInt(t.id.slice(1), 16);
-      this.polygons.beginFill(hexColor, 0.2);
+      const owner = this.ownerMap.get(t.id);
+      const fillColor = owner ? OWNER_COLORS[owner] ?? 0xffffff : parseInt(t.id.slice(1), 16);
+      const alpha = owner ? 0.5 : 0.2;
+      this.polygons.beginFill(fillColor, alpha);
       this.polygons.lineStyle(2, 0x000000, 0.8);
 
       for (const contour of contours) {

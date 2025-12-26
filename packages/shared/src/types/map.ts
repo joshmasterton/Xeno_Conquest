@@ -2,6 +2,7 @@ export interface RoadNode {
 	id: string;
 	x: number;
 	y: number;
+	ownerId?: string | null; // null means neutral
 }
 
 export interface RoadEdge {
@@ -17,7 +18,11 @@ export interface Unit {
 	distanceOnEdge: number;
 	speed: number;
 	pathQueue?: string[]; // sequence of nodeIds to visit (next targets)
-	ownerId?: string; // 'ai' or playerId; undefined = neutral
+	hp: number;
+	maxHp: number;
+	ownerId: string; // 'ai' or playerId
+	state: 'MOVING' | 'IDLE' | 'COMBAT';
+	combatTargetId?: string | null; // unit id we are fighting
 
 	// Precise stopping control (optional)
 	targetEdgeId?: string | null;

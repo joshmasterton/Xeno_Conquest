@@ -5,6 +5,8 @@ export const EVENTS = {
   S_GAME_TICK: 'S_GAME_TICK',
   C_MOVE_ORDER: 'C_MOVE_ORDER',
   COMBAT_EVENT: 'COMBAT_EVENT',
+  UNIT_DEATH: 'UNIT_DEATH',
+  S_UNIT_DEATH: 'S_UNIT_DEATH',
 } as const;
 
 export interface MoveOrder {
@@ -33,15 +35,23 @@ export interface CombatEventPayload {
   timestamp: number;
 }
 
+export interface UnitDeathPayload {
+  unitIds: string[];
+  timestamp: number;
+}
+
 export interface ServerGameTick {
   units: Unit[]; // authoritative state
   segments: MovementSegment[]; // visual interpolation hints
   timestamp: number;
+  nodes: RoadNode[];
 }
 
 export interface ServerToClientEvents {
   [EVENTS.S_GAME_TICK]: (payload: ServerGameTick) => void;
   [EVENTS.COMBAT_EVENT]: (payload: CombatEventPayload) => void;
+  [EVENTS.UNIT_DEATH]: (payload: UnitDeathPayload) => void;
+  [EVENTS.S_UNIT_DEATH]: (payload: { unitId: string }) => void;
 }
 
 export interface ClientToServerEvents {

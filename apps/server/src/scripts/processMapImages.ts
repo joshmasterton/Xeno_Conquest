@@ -214,7 +214,7 @@ async function processMap() {
 
       validColorIds.add(colorId);
     
-      nodes.push({ id: region.hex, x: region.centroidX, y: region.centroidY });
+      nodes.push({ id: region.hex, x: region.centroidX, y: region.centroidY, ownerId: null });
       territories.push({
         id: region.hex,
         x: region.centroidX,
