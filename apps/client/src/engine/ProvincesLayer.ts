@@ -1,11 +1,6 @@
 import { Graphics, Container } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
-import { type Territory, type RoadNode } from '@xeno/shared';
-
-const OWNER_COLORS: Record<string, number> = {
-  'player-1': 0x3388ff,
-  'ai_neutral': 0xff3333,
-};
+import { type Territory, type RoadNode, getFactionColor } from '@xeno/shared';
 
 export class ProvincesLayer {
   public container: Container;
@@ -93,7 +88,7 @@ export class ProvincesLayer {
       if (!contours.length) continue;
 
       const owner = this.ownerMap.get(t.id);
-      const fillColor = owner ? OWNER_COLORS[owner] ?? 0xffffff : parseInt(t.id.slice(1), 16);
+      const fillColor = owner ? getFactionColor(owner) : parseInt(t.id.slice(1), 16);
       const alpha = owner ? 0.5 : 0.2;
       this.polygons.beginFill(fillColor, alpha);
       this.polygons.lineStyle(2, 0x000000, 0.8);

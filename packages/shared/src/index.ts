@@ -6,6 +6,7 @@ export * from './types/map';
 export * from './types/world';
 export * from './types/state';
 export * from './config/constants';
+export * from './config/factions';
 export * from './protocol/events';
 export * from './utils/provinceToNode';
 

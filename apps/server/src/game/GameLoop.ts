@@ -155,12 +155,13 @@ export class GameLoop {
 			const pairs = detectProximity(this.units, this.edges, this.nodesById);
 			processCombat(this.units, pairs, deltaTime);
 
-			// Mark dead units
-			const deadIds: string[] = [...absorbedIds];
-			for (let i = this.units.length - 1; i >= 0; i--) {
-				const unit = this.units[i];
-				if (typeof unit.hp === 'number' && unit.hp <= 0) {
-					if (!deadIds.includes(unit.id)) deadIds.push(unit.id);
+// Mark dead units and remove immediately from array
+		const deadIds: string[] = [...absorbedIds];
+		for (let i = this.units.length - 1; i >= 0; i--) {
+			const unit = this.units[i];
+			if (typeof unit.hp === 'number' && unit.hp <= 0) {
+				if (!deadIds.includes(unit.id)) deadIds.push(unit.id);
+				this.units.splice(i, 1); // Remove now so they don't appear in tick broadcast
 				}
 			}
 

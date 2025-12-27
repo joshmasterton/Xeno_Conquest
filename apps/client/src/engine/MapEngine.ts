@@ -186,6 +186,7 @@ export class MapEngine implements IMapEngineState {
       edges: this.edges,
       nodesById: this.nodesById,
       socket: this.socket as unknown as Socket,
+      myPlayerId: useGameStore.getState().myPlayerId,
       getInteractionMode: () => this.interactionMode,
       getSelectedUnitId: () => this.selectedUnitId,
       getSelectedProvinceId: () => this.selectedProvinceId,

@@ -56,7 +56,11 @@ export function createAIUnitsFromBases(
 	const units: Unit[] = [];
 	const perBase = Math.max(1, Math.ceil(count / Math.max(1, baseNodeIds.length)));
 	let uid = 1;
-	for (const baseId of baseNodeIds) {
+	for (let baseIndex = 0; baseIndex < baseNodeIds.length; baseIndex++) {
+		const baseId = baseNodeIds[baseIndex];
+		// Assign unique faction ID per base (enables AI vs AI combat)
+		const factionId = `ai_faction_${baseIndex}`;
+
 		const outgoing = edges.filter((e) => e.sourceNodeId === baseId);
 		const fallbackIncoming = edges.filter((e) => e.targetNodeId === baseId);
 		for (let i = 0; i < perBase && uid <= count; i++, uid++) {
@@ -90,7 +94,7 @@ export function createAIUnitsFromBases(
 			}
 
 			units.push({
-				id: `ai-${uid}`,
+				id: `unit-${uid}`,
 				edgeId,
 				distanceOnEdge: 0,
 				speed: UNIT_BASE_SPEED,
@@ -98,7 +102,7 @@ export function createAIUnitsFromBases(
 				hp: 100,
 				maxHp: 100,
 				state: 'IDLE',
-				ownerId: 'ai_neutral',
+				ownerId: factionId,
 				count: 1,
 			});
 		}
@@ -113,7 +117,8 @@ export function updateAIUnits(
 ): void {
 	const nodesById = new Map(nodes.map((n) => [n.id, n]));
 	for (const unit of units) {
-		if (unit.ownerId && unit.ownerId !== 'ai_neutral') continue;
+		// Only update units without a faction controller (ai_faction units are managed)
+		if (unit.ownerId && unit.ownerId.startsWith('ai_faction')) continue;
 		
 		const currentEdge = edges.find((e) => e.id === unit.edgeId);
 		if (!currentEdge) continue;

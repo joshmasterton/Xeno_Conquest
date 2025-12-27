@@ -13,6 +13,7 @@ export interface InteractionHost {
   edges: RoadEdge[];
   nodesById: Map<string, RoadNode>;
   socket: Socket;
+  myPlayerId: string;
   getInteractionMode: () => InteractionMode;
   getSelectedUnitId: () => string | null;
   getSelectedProvinceId: () => string | null;
@@ -76,11 +77,15 @@ export function setupInteraction(host: InteractionHost) {
       }
     }
     if (clickedUnitId) {
-      // Select Unit, Deselect Province
-      host.selectUnit(clickedUnitId);
-      host.setSelectedProvinceId(null);
-      host.provincesLayer?.highlight(null);
-      return;
+      // Check ownership: only allow selecting player's own units
+      const sprite = host.unitSprites.get(clickedUnitId) as any;
+      if (sprite?.unitOwnerId === host.myPlayerId) {
+        // Select Unit, Deselect Province
+        host.selectUnit(clickedUnitId);
+        host.setSelectedProvinceId(null);
+        host.provincesLayer?.highlight(null);
+        return;
+      }
     }
 
     // B. Check Province Hit (Bottom Layer)

@@ -1,11 +1,14 @@
-import { Graphics } from 'pixi.js';
+import { Graphics, Text, TextStyle } from 'pixi.js';
 import type { ServerGameTick } from '@xeno/shared';
+import { getFactionColor } from '@xeno/shared';
 import type { MapEngine, IMapEngineState } from './MapEngine';
 
 type UnitSprite = Graphics & {
   hpBarBg?: Graphics;
   hpBarFg?: Graphics;
   combatIcon?: Graphics;
+  countLabel?: Text;
+  unitOwnerId?: string;
 };
 
 function clamp01(value: number): number {
@@ -19,8 +22,8 @@ function ensureUnitSprite(host: IMapEngineState & MapEngine, serverUnit: { id: s
   if (existing) return existing;
 
   const g = new Graphics() as UnitSprite;
-  const isPlayerUnit = serverUnit.ownerId && serverUnit.ownerId.startsWith('player');
-  const color = isPlayerUnit ? 0xffaa00 : 0xff0000;
+  g.unitOwnerId = serverUnit.ownerId; // Store owner ID on sprite
+  const color = getFactionColor(serverUnit.ownerId);
   g.beginFill(color);
   g.drawCircle(0, 0, 8);
   g.endFill();
@@ -61,13 +64,28 @@ function ensureUnitSprite(host: IMapEngineState & MapEngine, serverUnit: { id: s
   g.addChild(combatIcon);
   g.combatIcon = combatIcon;
 
+  // Unit Count Label
+  const countStyle = new TextStyle({
+    fontFamily: 'Arial',
+    fontSize: 12,
+    fill: '#ffffff',
+    fontWeight: 'bold',
+    stroke: '#000000',
+    strokeThickness: 2,
+  });
+  const countLabel = new Text('', countStyle);
+  countLabel.anchor.set(0.5);
+  countLabel.position.set(0, -22);
+  g.addChild(countLabel);
+  g.countLabel = countLabel;
+
   host.viewport.addChild(g);
   host.unitSprites.set(serverUnit.id, g);
 
   return g;
 }
 
-function updateUnitSprite(sprite: UnitSprite, serverUnit: { hp?: number; maxHp?: number; state?: string }): void {
+function updateUnitSprite(sprite: UnitSprite, serverUnit: { hp?: number; maxHp?: number; state?: string; count?: number }): void {
   const maxHp = serverUnit.maxHp ?? 100;
   const hp = serverUnit.hp ?? maxHp;
   const ratio = maxHp > 0 ? clamp01(hp / maxHp) : 0;
@@ -81,6 +99,12 @@ function updateUnitSprite(sprite: UnitSprite, serverUnit: { hp?: number; maxHp?:
 
   if (sprite.combatIcon) {
     sprite.combatIcon.visible = serverUnit.state === 'COMBAT';
+  }
+
+  if (sprite.countLabel) {
+    const count = serverUnit.count ?? 1;
+    sprite.countLabel.text = count > 1 ? `×${count}` : '';
+    sprite.countLabel.visible = count > 1;
   }
 }
 
