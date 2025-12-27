@@ -12,8 +12,52 @@ export function processPlayerOrder(
   edges: RoadEdge[],
   nodes: RoadNode[]
 ): void {
-  const unit = units.find((u) => u.id === order.unitId);
-  if (!unit) return;
+  const unitIndex = units.findIndex((u) => u.id === order.unitId);
+  if (unitIndex === -1) return;
+  
+  const unit = units[unitIndex];
+
+  // Determine if this is a SPLIT or a FULL MOVE
+  const moveAll = !order.splitCount || order.splitCount >= unit.count;
+
+  if (moveAll) {
+    // Move the whole stack
+    applyMoveToUnit(unit, order, edges, nodes);
+  } else {
+    // SPLIT: Create garrison and expedition
+    // 1. Reduce the garrison (stays behind)
+    unit.count -= order.splitCount!;
+    
+    // 2. Create the expedition force (moving out)
+    const newUnitId = `unit-${unit.ownerId}-${Date.now()}`;
+    const newUnit: Unit = {
+      ...unit,
+      id: newUnitId,
+      count: order.splitCount!,
+      hp: order.splitCount! * 10, // 10 HP per soldier
+      maxHp: order.splitCount! * 10,
+      state: 'IDLE',
+      pathQueue: [],
+      edgeId: unit.edgeId,
+      distanceOnEdge: unit.distanceOnEdge,
+    };
+
+    // 3. Command the new unit to move
+    applyMoveToUnit(newUnit, order, edges, nodes);
+
+    // 4. Add to world
+    units.push(newUnit);
+    
+    console.log(`⑂ SPLIT: Unit ${unit.id} kept ${unit.count}, new Unit ${newUnit.id} took ${newUnit.count}`);
+  }
+}
+
+function applyMoveToUnit(
+  unit: Unit,
+  order: MoveOrder,
+  edges: RoadEdge[],
+  nodes: RoadNode[]
+): void {
 
   const currentEdge = edges.find((e) => e.id === unit.edgeId);
   if (!currentEdge) return;

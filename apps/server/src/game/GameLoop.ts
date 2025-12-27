@@ -12,6 +12,9 @@ import { processConquest } from './systems/ConquestSystem';
 import { processResources } from './systems/ResourceSystem';
 import { processStacking } from './systems/StackingSystem';
 
+const STARTING_SQUAD_COUNT = 10;
+const HP_PER_SOLDIER = 100;
+
 function createBidirectionalEdges(edges: RoadEdge[]): RoadEdge[] {
 	const key = (a: string, b: string) => `${a}->${b}`;
 	const seen = new Set<string>(edges.map((e) => key(e.sourceNodeId, e.targetNodeId)));
@@ -45,26 +48,33 @@ export class GameLoop {
 		// Initialize players with zeroed resources
 		this.playerStates.set('player-1', { gold: 0, manpower: 0 });
 
-		// Spawn one AI unit at each province (17 total)
-		this.units = createAIUnitsFromBases(worldGraph.nodes.length, this.edges, worldGraph.nodes, worldGraph.nodes.map(n => n.id));
+		// Split bases: first for player, remaining for AI
+		const playerBaseId = BASE_NODE_IDS[0];
+		const aiBaseIds = BASE_NODE_IDS.slice(1);
 
-		// Spawn one test player unit at first base's outgoing edge
-		const baseId = BASE_NODE_IDS[0];
-		const outgoing = this.edges.filter((e) => e.sourceNodeId === baseId);
-		const playerEdge = outgoing[0] ?? this.edges.find((e) => e.targetNodeId === baseId) ?? this.edges[0];
-		this.units.push({
-			id: 'player-1',
-			edgeId: playerEdge!.id,
-			distanceOnEdge: 0,
-			speed: 60,
-			ownerId: 'player-1',
-			pathQueue: [],
-			hp: 100,
-			maxHp: 100,
-			state: 'IDLE',
-			count: 1,
-		});
-		console.log(`✅ Player spawned from base ${baseId} on edge ${playerEdge!.id}, pathQueue=[]`);
+		// Spawn one AI stack per AI base
+		this.units = createAIUnitsFromBases(aiBaseIds.length, this.edges, worldGraph.nodes, aiBaseIds);
+
+		// Spawn player stack at the player base
+		const outgoing = this.edges.filter((e) => e.sourceNodeId === playerBaseId);
+		const fallbackIncoming = this.edges.filter((e) => e.targetNodeId === playerBaseId);
+		const playerEdge = outgoing[0] ?? fallbackIncoming[0] ?? this.edges[0];
+
+		if (playerEdge) {
+			this.units.push({
+				id: 'player-1',
+				edgeId: playerEdge.id,
+				distanceOnEdge: 0,
+				speed: 60,
+				ownerId: 'player-1',
+				pathQueue: [],
+				hp: STARTING_SQUAD_COUNT * HP_PER_SOLDIER,
+				maxHp: STARTING_SQUAD_COUNT * HP_PER_SOLDIER,
+				state: 'IDLE',
+				count: STARTING_SQUAD_COUNT,
+			});
+			console.log(`✅ Player spawned at ${playerBaseId} with ${STARTING_SQUAD_COUNT} troops.`);
+		}
 
 		// Listen for player move orders
 		console.log('🔌 Setting up Socket.IO event listeners...');
@@ -106,10 +116,10 @@ export class GameLoop {
 					speed: 60,
 					ownerId: playerId,
 					pathQueue: [],
-					hp: 100,
-					maxHp: 100,
+					hp: STARTING_SQUAD_COUNT * HP_PER_SOLDIER,
+					maxHp: STARTING_SQUAD_COUNT * HP_PER_SOLDIER,
 					state: 'IDLE',
-					count: 1,
+					count: STARTING_SQUAD_COUNT,
 				});
 				console.log(`⚒️ Unit built by ${playerId} at node ${payload.nodeId}`);
 			});

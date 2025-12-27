@@ -16,6 +16,7 @@ export interface MoveOrder {
   destNodeId?: string; // Optional: legacy node destination
   targetEdgeId?: string; // Optional: precise edge to stop on
   targetPercent?: number; // Optional: 0..1 along the target edge
+  splitCount?: number; // Optional: how many troops to move. If missing or >= unit.count, move all
 }
 
 export interface MovementSegment {

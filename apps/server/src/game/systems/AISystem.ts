@@ -2,6 +2,9 @@ import type { Unit, RoadEdge, RoadNode } from '@xeno/shared';
 import { UNIT_BASE_SPEED } from '@xeno/shared';
 import { findPath, edgeForStep } from './Pathing';
 
+const AI_SQUAD_COUNT = 10;
+const HP_PER_SOLDIER = 100;
+
 function pickRandom<T>(arr: T[]): T {
 	return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -37,11 +40,11 @@ export function createAIUnits(
 			distanceOnEdge: 0,
 			speed: UNIT_BASE_SPEED,
 			pathQueue,
-			hp: 100,
-			maxHp: 100,
+			hp: AI_SQUAD_COUNT * HP_PER_SOLDIER,
+			maxHp: AI_SQUAD_COUNT * HP_PER_SOLDIER,
 			state: 'IDLE',
 			ownerId: 'ai_neutral',
-			count: 1,
+			count: AI_SQUAD_COUNT,
 		});
 	}
 	return units;
@@ -54,58 +57,57 @@ export function createAIUnitsFromBases(
 	baseNodeIds: string[]
 ): Unit[] {
 	const units: Unit[] = [];
-	const perBase = Math.max(1, Math.ceil(count / Math.max(1, baseNodeIds.length)));
+	const spawnBases = baseNodeIds.slice(0, Math.min(count || baseNodeIds.length, baseNodeIds.length));
 	let uid = 1;
-	for (let baseIndex = 0; baseIndex < baseNodeIds.length; baseIndex++) {
-		const baseId = baseNodeIds[baseIndex];
+	for (let baseIndex = 0; baseIndex < spawnBases.length; baseIndex++) {
+		const baseId = spawnBases[baseIndex];
 		// Assign unique faction ID per base (enables AI vs AI combat)
 		const factionId = `ai_faction_${baseIndex}`;
 
 		const outgoing = edges.filter((e) => e.sourceNodeId === baseId);
 		const fallbackIncoming = edges.filter((e) => e.targetNodeId === baseId);
-		for (let i = 0; i < perBase && uid <= count; i++, uid++) {
-			let startEdge: RoadEdge | undefined = outgoing[0];
-			let startNodeId = baseId;
-			if (!startEdge && fallbackIncoming[0]) {
-				const inc = fallbackIncoming[0];
-				startEdge = edges.find(
-					(e) => e.sourceNodeId === baseId && e.targetNodeId === inc.sourceNodeId
-				) || inc;
-			}
-			if (!startEdge) {
-				startEdge = edges[0];
-				startNodeId = startEdge.sourceNodeId;
-			}
 
-			let endNodeId = nodes[Math.floor(Math.random() * nodes.length)].id;
-			let path = findPath(edges, startNodeId, endNodeId);
-			for (let attempts = 0; attempts < 5 && (!path || path.length < 2); attempts++) {
-				endNodeId = nodes[Math.floor(Math.random() * nodes.length)].id;
-				if (endNodeId === startNodeId) continue;
-				path = findPath(edges, startNodeId, endNodeId);
-			}
-
-			let edgeId = startEdge.id;
-			let pathQueue: string[] | undefined = [startEdge.targetNodeId];
-			if (path && path.length >= 2) {
-				const firstStep = edgeForStep(edges, path[0], path[1]);
-				if (firstStep) edgeId = firstStep.id;
-				pathQueue = path.slice(1);
-			}
-
-			units.push({
-				id: `unit-${uid}`,
-				edgeId,
-				distanceOnEdge: 0,
-				speed: UNIT_BASE_SPEED,
-				pathQueue,
-				hp: 100,
-				maxHp: 100,
-				state: 'IDLE',
-				ownerId: factionId,
-				count: 1,
-			});
+		let startEdge: RoadEdge | undefined = outgoing[0];
+		if (!startEdge && fallbackIncoming[0]) {
+			const inc = fallbackIncoming[0];
+			startEdge = edges.find(
+				(e) => e.sourceNodeId === baseId && e.targetNodeId === inc.sourceNodeId
+			) || inc;
 		}
+		if (!startEdge) {
+			console.warn(`No valid edge found for base ${baseId}; skipping AI spawn.`);
+			continue;
+		}
+
+		let endNodeId = nodes[Math.floor(Math.random() * nodes.length)].id;
+		let path = findPath(edges, startEdge.targetNodeId, endNodeId);
+		for (let attempts = 0; attempts < 5 && (!path || path.length < 2); attempts++) {
+			endNodeId = nodes[Math.floor(Math.random() * nodes.length)].id;
+			if (endNodeId === startEdge.targetNodeId) continue;
+			path = findPath(edges, startEdge.targetNodeId, endNodeId);
+		}
+
+		let edgeId = startEdge.id;
+		let pathQueue: string[] | undefined = [startEdge.targetNodeId];
+		if (path && path.length >= 2) {
+			const firstStep = edgeForStep(edges, path[0], path[1]);
+			if (firstStep) edgeId = firstStep.id;
+			pathQueue = path.slice(1);
+		}
+
+		units.push({
+			id: `unit-${uid}`,
+			edgeId,
+			distanceOnEdge: 0,
+			speed: UNIT_BASE_SPEED,
+			pathQueue,
+			hp: AI_SQUAD_COUNT * HP_PER_SOLDIER,
+			maxHp: AI_SQUAD_COUNT * HP_PER_SOLDIER,
+			state: 'IDLE',
+			ownerId: factionId,
+			count: AI_SQUAD_COUNT,
+		});
+		uid++;
 	}
 	return units;
 }

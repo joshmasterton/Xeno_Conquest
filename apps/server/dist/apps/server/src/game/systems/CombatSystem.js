@@ -6,9 +6,14 @@ const MovementView_1 = require("./MovementView");
 // Simple uniform grid to avoid O(n^2) brute force
 const cellSize = shared_1.COMBAT_RADIUS * 2;
 function detectProximity(units, edges, nodesById) {
+    // Map units by ID for quick faction lookup
+    const unitsById = new Map(units.map(u => [u.id, u]));
     const buckets = new Map();
     const key = (x, y) => `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}`;
     for (const u of units) {
+        // Skip dead units
+        if (u.hp <= 0)
+            continue;
         const e = edges.find((edge) => edge.id === u.edgeId);
         if (!e)
             continue;
@@ -35,6 +40,13 @@ function detectProximity(units, edges, nodesById) {
             for (const b of neighbors) {
                 if (a.id >= b.id)
                     continue; // avoid dup / self
+                // Faction check: Don't fight friendlies
+                const unitA = unitsById.get(a.id);
+                const unitB = unitsById.get(b.id);
+                if (!unitA || !unitB)
+                    continue;
+                if (unitA.ownerId === unitB.ownerId)
+                    continue;
                 const pairKey = `${a.id}|${b.id}`;
                 if (visited.has(pairKey))
                     continue;

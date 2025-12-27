@@ -88,8 +88,8 @@ export class ProvincesLayer {
       if (!contours.length) continue;
 
       const owner = this.ownerMap.get(t.id);
-      const fillColor = owner ? getFactionColor(owner) : parseInt(t.id.slice(1), 16);
-      const alpha = owner ? 0.5 : 0.2;
+      const fillColor = owner ? getFactionColor(owner) : getFactionColor(null);
+      const alpha = owner ? 0.5 : 0.25;
       this.polygons.beginFill(fillColor, alpha);
       this.polygons.lineStyle(2, 0x000000, 0.8);
 

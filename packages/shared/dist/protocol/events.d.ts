@@ -14,6 +14,7 @@ export interface MoveOrder {
     destNodeId?: string;
     targetEdgeId?: string;
     targetPercent?: number;
+    splitCount?: number;
 }
 export interface MovementSegment {
     unitId: string;

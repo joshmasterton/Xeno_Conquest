@@ -11,10 +11,16 @@ export function detectProximity(
   edges: RoadEdge[],
   nodesById: Map<string, RoadNode>
 ): CombatPair[] {
+  // Map units by ID for quick faction lookup
+  const unitsById = new Map(units.map(u => [u.id, u]));
+  
   const buckets = new Map<string, { id: string; x: number; y: number }[]>();
   const key = (x: number, y: number) => `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}`;
 
   for (const u of units) {
+    // Skip dead units
+    if (u.hp <= 0) continue;
+    
     const e = edges.find((edge) => edge.id === u.edgeId);
     if (!e) continue;
     const p = getUnitEdgePosition(u, e, nodesById);
@@ -40,6 +46,13 @@ export function detectProximity(
     for (const a of list) {
       for (const b of neighbors) {
         if (a.id >= b.id) continue; // avoid dup / self
+        
+        // Faction check: Don't fight friendlies
+        const unitA = unitsById.get(a.id);
+        const unitB = unitsById.get(b.id);
+        if (!unitA || !unitB) continue;
+        if (unitA.ownerId === unitB.ownerId) continue;
+        
         const pairKey = `${a.id}|${b.id}`;
         if (visited.has(pairKey)) continue;
         const dx = a.x - b.x;
