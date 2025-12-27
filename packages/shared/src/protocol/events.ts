@@ -1,9 +1,11 @@
 import type { Unit } from '../types/map';
 import type { RoadNode } from '../types/map';
+import type { PlayerResources } from '../types/state';
 
 export const EVENTS = {
   S_GAME_TICK: 'S_GAME_TICK',
   C_MOVE_ORDER: 'C_MOVE_ORDER',
+  C_BUILD_UNIT: 'C_BUILD_UNIT',
   COMBAT_EVENT: 'COMBAT_EVENT',
   UNIT_DEATH: 'UNIT_DEATH',
   S_UNIT_DEATH: 'S_UNIT_DEATH',
@@ -23,6 +25,11 @@ export interface MovementSegment {
   end: { x: number; y: number };
   startTime: number; // ms epoch
   durationMs: number; // total duration in ms
+}
+
+export interface BuildUnitPayload {
+  nodeId: string;
+  unitType: 'infantry';
 }
 
 export interface CombatPair {
@@ -45,6 +52,7 @@ export interface ServerGameTick {
   segments: MovementSegment[]; // visual interpolation hints
   timestamp: number;
   nodes: RoadNode[];
+  players: Record<string, PlayerResources>;
 }
 
 export interface ServerToClientEvents {
@@ -56,4 +64,5 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   [EVENTS.C_MOVE_ORDER]: (payload: MoveOrder) => void;
+  [EVENTS.C_BUILD_UNIT]: (payload: BuildUnitPayload) => void;
 }

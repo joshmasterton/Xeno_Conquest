@@ -1,8 +1,11 @@
+import type { PlayerResources } from '@xeno/shared';
+
 export interface RoadNode {
 	id: string;
 	x: number;
 	y: number;
 	ownerId?: string | null; // null means neutral
+	resourceYield?: Partial<PlayerResources>;
 }
 
 export interface RoadEdge {
@@ -23,6 +26,7 @@ export interface Unit {
 	ownerId: string; // 'ai' or playerId
 	state: 'MOVING' | 'IDLE' | 'COMBAT';
 	combatTargetId?: string | null; // unit id we are fighting
+	count: number; // number of soldiers in this stack
 
 	// Precise stopping control (optional)
 	targetEdgeId?: string | null;

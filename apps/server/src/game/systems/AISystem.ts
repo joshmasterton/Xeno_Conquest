@@ -41,6 +41,7 @@ export function createAIUnits(
 			maxHp: 100,
 			state: 'IDLE',
 			ownerId: 'ai_neutral',
+			count: 1,
 		});
 	}
 	return units;
@@ -98,13 +99,14 @@ export function createAIUnitsFromBases(
 				maxHp: 100,
 				state: 'IDLE',
 				ownerId: 'ai_neutral',
+				count: 1,
 			});
 		}
 	}
 	return units;
 }
 
-export function updateAIPaths(
+export function updateAIUnits(
 	units: Unit[],
 	edges: RoadEdge[],
 	nodes: RoadNode[]

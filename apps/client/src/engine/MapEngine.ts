@@ -20,6 +20,7 @@ import { ProvincesLayer } from './ProvincesLayer';
 import { setupInteraction } from './interaction';
 import { handleTick } from './tick';
 import { handleGameTick, flashUnit } from './view';
+import { useGameStore } from '../store/gameStore';
 
 type RendererWithEvents = Renderer & { events: EventSystem };
 
@@ -147,8 +148,16 @@ export class MapEngine implements IMapEngineState {
 
     // Socket
     this.socket = io('http://localhost:3000') as Socket<ServerToClientEvents, ClientToServerEvents>;
+        useGameStore.setState({
+          sendBuildOrder: (nodeId: string) => this.socket.emit(EVENTS.C_BUILD_UNIT, { nodeId, unitType: 'infantry' }),
+        });
     this.socket.on('connect', () => console.log('✅ Connected'));
     this.socket.on(EVENTS.S_GAME_TICK, (payload) => {
+      const store = useGameStore.getState();
+      const playerData = payload.players?.[store.myPlayerId];
+      if (playerData) {
+        store.setResources(playerData.gold, playerData.manpower);
+      }
       this.provincesLayer?.updateNodes(payload.nodes);
       handleGameTick(this, payload);
     });
@@ -156,6 +165,14 @@ export class MapEngine implements IMapEngineState {
       for (const pair of payload.pairs) {
         flashUnit(this, pair.aId);
         flashUnit(this, pair.bId);
+      }
+    });
+    this.socket.on(EVENTS.S_UNIT_DEATH, (payload: { unitId: string }) => {
+      const sprite = this.unitSprites.get(payload.unitId);
+      if (sprite) {
+        sprite.parent?.removeChild(sprite);
+        sprite.destroy();
+        this.unitSprites.delete(payload.unitId);
       }
     });
 
@@ -227,6 +244,7 @@ export class MapEngine implements IMapEngineState {
 
   public setSelectedProvinceId(id: string | null) {
     this.selectedProvinceId = id;
+    useGameStore.setState({ selectedNodeId: id });
   }
 
   private clearSelectionRing() {

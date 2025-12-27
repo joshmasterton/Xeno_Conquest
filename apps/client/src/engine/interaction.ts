@@ -93,9 +93,9 @@ export function setupInteraction(host: InteractionHost) {
         host.provincesLayer?.highlight(null);
       } else {
         // Select Province, Deselect Unit
+        host.selectUnit(null); // clear unit selection first so we don't wipe highlight
         host.setSelectedProvinceId(hit.id);
         host.provincesLayer?.highlight(hit);
-        host.selectUnit(null);
       }
       return;
     }
