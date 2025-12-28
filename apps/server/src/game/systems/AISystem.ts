@@ -2,7 +2,7 @@ import type { Unit, RoadEdge, RoadNode } from '@xeno/shared';
 import { UNIT_BASE_SPEED } from '@xeno/shared';
 import { findPath, edgeForStep } from './Pathing';
 
-const AI_SQUAD_COUNT = 10;
+const AI_TROOPS = 20;
 const HP_PER_SOLDIER = 100;
 
 function pickRandom<T>(arr: T[]): T {
@@ -40,11 +40,11 @@ export function createAIUnits(
 			distanceOnEdge: 0,
 			speed: UNIT_BASE_SPEED,
 			pathQueue,
-			hp: AI_SQUAD_COUNT * HP_PER_SOLDIER,
-			maxHp: AI_SQUAD_COUNT * HP_PER_SOLDIER,
+			hp: AI_TROOPS * HP_PER_SOLDIER,
+			maxHp: AI_TROOPS * HP_PER_SOLDIER,
 			state: 'IDLE',
 			ownerId: 'ai_neutral',
-			count: AI_SQUAD_COUNT,
+			count: AI_TROOPS,
 		});
 	}
 	return units;
@@ -57,57 +57,36 @@ export function createAIUnitsFromBases(
 	baseNodeIds: string[]
 ): Unit[] {
 	const units: Unit[] = [];
-	const spawnBases = baseNodeIds.slice(0, Math.min(count || baseNodeIds.length, baseNodeIds.length));
-	let uid = 1;
-	for (let baseIndex = 0; baseIndex < spawnBases.length; baseIndex++) {
-		const baseId = spawnBases[baseIndex];
-		// Assign unique faction ID per base (enables AI vs AI combat)
-		const factionId = `ai_faction_${baseIndex}`;
+	const basesToUse = baseNodeIds.slice(0, count);
+	for (let i = 0; i < basesToUse.length; i++) {
+		const baseId = basesToUse[i];
+		const factionId = `ai_faction_${i + 1}`;
 
 		const outgoing = edges.filter((e) => e.sourceNodeId === baseId);
-		const fallbackIncoming = edges.filter((e) => e.targetNodeId === baseId);
+		const incoming = edges.filter((e) => e.targetNodeId === baseId);
 
 		let startEdge: RoadEdge | undefined = outgoing[0];
-		if (!startEdge && fallbackIncoming[0]) {
-			const inc = fallbackIncoming[0];
-			startEdge = edges.find(
-				(e) => e.sourceNodeId === baseId && e.targetNodeId === inc.sourceNodeId
-			) || inc;
+		if (!startEdge && incoming[0]) {
+			startEdge = incoming[0];
 		}
 		if (!startEdge) {
-			console.warn(`No valid edge found for base ${baseId}; skipping AI spawn.`);
+			console.warn(`⚠️ AI Base ${baseId} is isolated (no roads). Army creation skipped.`);
 			continue;
 		}
 
-		let endNodeId = nodes[Math.floor(Math.random() * nodes.length)].id;
-		let path = findPath(edges, startEdge.targetNodeId, endNodeId);
-		for (let attempts = 0; attempts < 5 && (!path || path.length < 2); attempts++) {
-			endNodeId = nodes[Math.floor(Math.random() * nodes.length)].id;
-			if (endNodeId === startEdge.targetNodeId) continue;
-			path = findPath(edges, startEdge.targetNodeId, endNodeId);
-		}
-
-		let edgeId = startEdge.id;
-		let pathQueue: string[] | undefined = [startEdge.targetNodeId];
-		if (path && path.length >= 2) {
-			const firstStep = edgeForStep(edges, path[0], path[1]);
-			if (firstStep) edgeId = firstStep.id;
-			pathQueue = path.slice(1);
-		}
-
 		units.push({
-			id: `unit-${uid}`,
-			edgeId,
+			id: `unit-${factionId}-1`,
+			edgeId: startEdge.id,
 			distanceOnEdge: 0,
 			speed: UNIT_BASE_SPEED,
-			pathQueue,
-			hp: AI_SQUAD_COUNT * HP_PER_SOLDIER,
-			maxHp: AI_SQUAD_COUNT * HP_PER_SOLDIER,
+			pathQueue: [],
+			hp: AI_TROOPS * HP_PER_SOLDIER,
+			maxHp: AI_TROOPS * HP_PER_SOLDIER,
 			state: 'IDLE',
 			ownerId: factionId,
-			count: AI_SQUAD_COUNT,
+			count: AI_TROOPS,
 		});
-		uid++;
+		console.log(`🤖 AI ${factionId} spawned at ${baseId}`);
 	}
 	return units;
 }

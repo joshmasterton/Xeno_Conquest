@@ -5,14 +5,14 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@xeno/shared';
 import { findPath, edgeForStep } from './systems/Pathing';
 import { buildSegment, getUnitEdgePosition } from './systems/MovementView';
 import { detectProximity } from './systems/CombatSystem';
-import { createAIUnits, createAIUnitsFromBases, updateAIUnits } from './systems/AISystem';
+import { createAIUnitsFromBases, updateAIUnits } from './systems/AISystem';
 import { processPlayerOrder } from './systems/PlayerOrderSystem';
 import { processCombat } from './systems/DamageSystem';
 import { processConquest } from './systems/ConquestSystem';
 import { processResources } from './systems/ResourceSystem';
 import { processStacking } from './systems/StackingSystem';
 
-const STARTING_SQUAD_COUNT = 10;
+const STARTING_TROOPS = 20;
 const HP_PER_SOLDIER = 100;
 
 function createBidirectionalEdges(edges: RoadEdge[]): RoadEdge[] {
@@ -48,33 +48,37 @@ export class GameLoop {
 		// Initialize players with zeroed resources
 		this.playerStates.set('player-1', { gold: 0, manpower: 0 });
 
-		// Split bases: first for player, remaining for AI
+		// Supremacy spawn logic
 		const playerBaseId = BASE_NODE_IDS[0];
 		const aiBaseIds = BASE_NODE_IDS.slice(1);
 
-		// Spawn one AI stack per AI base
-		this.units = createAIUnitsFromBases(aiBaseIds.length, this.edges, worldGraph.nodes, aiBaseIds);
+		console.log(`🗺️ Map Setup: Player at ${playerBaseId}, AI at ${aiBaseIds.join(', ')}`);
 
-		// Spawn player stack at the player base
-		const outgoing = this.edges.filter((e) => e.sourceNodeId === playerBaseId);
-		const fallbackIncoming = this.edges.filter((e) => e.targetNodeId === playerBaseId);
-		const playerEdge = outgoing[0] ?? fallbackIncoming[0] ?? this.edges[0];
-
-		if (playerEdge) {
+		// Spawn player army at its base
+		const pOutgoing = this.edges.filter((e) => e.sourceNodeId === playerBaseId);
+		const pStartEdge = pOutgoing[0] ?? this.edges.find((e) => e.targetNodeId === playerBaseId);
+		this.units = [];
+		if (pStartEdge) {
 			this.units.push({
-				id: 'player-1',
-				edgeId: playerEdge.id,
+				id: 'player-1-army',
+				edgeId: pStartEdge.id,
 				distanceOnEdge: 0,
 				speed: 60,
 				ownerId: 'player-1',
 				pathQueue: [],
-				hp: STARTING_SQUAD_COUNT * HP_PER_SOLDIER,
-				maxHp: STARTING_SQUAD_COUNT * HP_PER_SOLDIER,
 				state: 'IDLE',
-				count: STARTING_SQUAD_COUNT,
+				count: STARTING_TROOPS,
+				hp: STARTING_TROOPS * HP_PER_SOLDIER,
+				maxHp: STARTING_TROOPS * HP_PER_SOLDIER,
 			});
-			console.log(`✅ Player spawned at ${playerBaseId} with ${STARTING_SQUAD_COUNT} troops.`);
+			console.log(`✅ Player Army spawned at ${playerBaseId}`);
+		} else {
+			console.error(`❌ CRITICAL: Player Base ${playerBaseId} has no connected roads!`);
 		}
+
+		// Spawn one AI army per remaining base
+		const aiUnits = createAIUnitsFromBases(aiBaseIds.length, this.edges, worldGraph.nodes, aiBaseIds);
+		this.units.push(...aiUnits);
 
 		// Listen for player move orders
 		console.log('🔌 Setting up Socket.IO event listeners...');
@@ -116,10 +120,10 @@ export class GameLoop {
 					speed: 60,
 					ownerId: playerId,
 					pathQueue: [],
-					hp: STARTING_SQUAD_COUNT * HP_PER_SOLDIER,
-					maxHp: STARTING_SQUAD_COUNT * HP_PER_SOLDIER,
+					hp: STARTING_TROOPS * HP_PER_SOLDIER,
+					maxHp: STARTING_TROOPS * HP_PER_SOLDIER,
 					state: 'IDLE',
-					count: STARTING_SQUAD_COUNT,
+					count: STARTING_TROOPS,
 				});
 				console.log(`⚒️ Unit built by ${playerId} at node ${payload.nodeId}`);
 			});
@@ -165,13 +169,13 @@ export class GameLoop {
 			const pairs = detectProximity(this.units, this.edges, this.nodesById);
 			processCombat(this.units, pairs, deltaTime);
 
-// Mark dead units and remove immediately from array
-		const deadIds: string[] = [...absorbedIds];
-		for (let i = this.units.length - 1; i >= 0; i--) {
-			const unit = this.units[i];
-			if (typeof unit.hp === 'number' && unit.hp <= 0) {
-				if (!deadIds.includes(unit.id)) deadIds.push(unit.id);
-				this.units.splice(i, 1); // Remove now so they don't appear in tick broadcast
+			// Remove dead units immediately to avoid ghost targets
+			const deadIds: string[] = [...absorbedIds];
+			for (let i = this.units.length - 1; i >= 0; i--) {
+				const unit = this.units[i];
+				if (typeof unit.hp === 'number' && unit.hp <= 0) {
+					if (!deadIds.includes(unit.id)) deadIds.push(unit.id);
+					this.units.splice(i, 1);
 				}
 			}
 
