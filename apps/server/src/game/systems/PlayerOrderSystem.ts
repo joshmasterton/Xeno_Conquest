@@ -24,6 +24,12 @@ export function processPlayerOrder(
     return;
   }
 
+  // COMBAT LOCK: Prevent moving or splitting if the unit is fighting
+  if (unit.state === 'COMBAT') {
+    console.log(`🚫 Order rejected: Unit ${unit.id} is in combat.`);
+    return;
+  }
+
   // Determine if this is a SPLIT or a FULL MOVE
   const moveAll = !order.splitCount || order.splitCount >= unit.count;
 

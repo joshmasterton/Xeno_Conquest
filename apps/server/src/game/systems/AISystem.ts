@@ -90,7 +90,26 @@ export function updateAIUnits(
 
 		// Security & validity
 		if (!unit.ownerId || unit.ownerId.startsWith('player')) continue;
+
+		// If we are fighting, don't try to walk away!
+		if (unit.state === 'COMBAT') continue;
+
+		// Skip if already moving with a plan
 		if (unit.state === 'MOVING' && unit.pathQueue && unit.pathQueue.length > 0) continue;
+
+		// Context (needed for arrival check)
+		const currentEdge = edges.find((e) => e.id === unit.edgeId);
+		if (!currentEdge) continue;
+
+		// Check if the unit is physically at a node (either Start or End)
+		const arrivedAtEnd = unit.distanceOnEdge >= currentEdge.length;
+		const atStart = unit.distanceOnEdge <= 0;
+
+		// Only continue if the unit is physically at a node (either Start or End)
+		if (!arrivedAtEnd && !atStart) continue;
+
+		// Determine which node the unit is actually standing on
+		const currentNodeId = arrivedAtEnd ? currentEdge.targetNodeId : currentEdge.sourceNodeId;
 
 		// Stagger check
 		const readyTime = unitCooldowns.get(unit.id) ?? 0;
@@ -98,12 +117,7 @@ export function updateAIUnits(
 		// Reset cooldown (2–4s) to break synchronization
 		unitCooldowns.set(unit.id, now + 2000 + Math.random() * 2000);
 
-		// Context
-		const currentEdge = edges.find((e) => e.id === unit.edgeId);
-		if (!currentEdge) continue;
-		const arrivedAtNode = unit.distanceOnEdge >= currentEdge.length;
 		const hasNoPlan = !unit.pathQueue || unit.pathQueue.length === 0;
-		const currentNodeId = arrivedAtNode ? currentEdge.targetNodeId : currentEdge.sourceNodeId;
 
 		const personality = getPersonality(unit.ownerId);
 
@@ -116,7 +130,7 @@ export function updateAIUnits(
 		}
 
 		// Behavior: EXPANSIONIST (split & spread) — node-only split
-		if (personality === 'EXPANSIONIST' && unit.count >= SPLIT_THRESHOLD && arrivedAtNode && hasNoPlan) {
+		if (personality === 'EXPANSIONIST' && unit.count >= SPLIT_THRESHOLD && arrivedAtEnd && hasNoPlan) {
 			const outgoing = edges.filter((e) => e.sourceNodeId === currentNodeId);
 			if (outgoing.length > 0) {
 				const next = pickRandom(outgoing);

@@ -4,8 +4,8 @@ import { Socket } from 'socket.io-client';
 import { EVENTS, worldGraph, ensureProvinceNodeId, type RoadEdge, type RoadNode } from '@xeno/shared';
 import { ProvincesLayer } from './ProvincesLayer';
 import { findNearestEdge } from './edgeHitTest';
-import type { InteractionMode } from './MapEngine';
 import { useGameStore } from '../store/gameStore';
+import type { MapEngine } from './MapEngine';
 
 export interface InteractionHost {
   viewport: Viewport;
@@ -15,35 +15,46 @@ export interface InteractionHost {
   nodesById: Map<string, RoadNode>;
   socket: Socket;
   myPlayerId: string;
-  getInteractionMode: () => InteractionMode;
-  getSelectedUnitId: () => string | null;
-  getSelectedProvinceId: () => string | null;
-  setInteractionMode: (m: InteractionMode) => void;
   selectUnit: (id: string | null) => void;
   setSelectedProvinceId: (id: string | null) => void;
+  mapEngine: MapEngine;
 }
 
 export function setupInteraction(host: InteractionHost) {
   (host.viewport as any).on('clicked', (e: any) => {
     const { x, y } = e.world;
 
-    // TARGETING mode: try road then province; exit mode and deselect
-    const mode = host.getInteractionMode();
-    const selectedUnitId = host.getSelectedUnitId();
-      if (mode === 'TARGETING' && selectedUnitId) {
-        let orderSent = false;
-        const currentZoom = host.viewport.scale.x || 1;
-        const hitEdge = findNearestEdge(host.edges, host.nodesById, x, y, 40 / currentZoom);
+    // GET STATE DIRECTLY FROM STORE
+    const { 
+      interactionMode, 
+      setInteractionMode, 
+      selectedUnitId, 
+      moveSplitPercent,
+      setSelectedUnitId,
+      setSelectedNodeId
+    } = useGameStore.getState();
 
-      // Split slider: read global percent and infer current unit count from sprite
-      const splitPercent = useGameStore.getState().moveSplitPercent;
+    // ----------------------------------------------------
+    // TARGETING MODE (Move / Attack)
+    // ----------------------------------------------------
+    if (interactionMode === 'TARGETING' && selectedUnitId) {
+      let orderSent = false;
+      const currentZoom = host.viewport.scale.x || 1;
+      
+      // A. Check Edge (Road) Target
+      const hitEdge = findNearestEdge(host.edges, host.nodesById, x, y, 40 / currentZoom);
+
+      // Calculate Split
       const sprite = host.unitSprites.get(selectedUnitId) as any;
       const currentCount = sprite?.serverUnit?.count ?? 1;
       let splitCount: number | undefined = undefined;
-      if (splitPercent < 1.0) {
-        splitCount = Math.floor(currentCount * splitPercent);
+      
+      if (moveSplitPercent < 1.0) {
+        splitCount = Math.floor(currentCount * moveSplitPercent);
         if (splitCount < 1) splitCount = 1;
       }
+
+      // Send Order: Move to Edge
       if (hitEdge) {
         console.log('🎯 Order: Edge Target', hitEdge.edge.id);
         host.socket.emit(EVENTS.C_MOVE_ORDER, {
@@ -54,6 +65,8 @@ export function setupInteraction(host: InteractionHost) {
         });
         orderSent = true;
       }
+      
+      // Send Order: Move to Node (Province)
       if (!orderSent) {
         const hitProvince = host.provincesLayer?.hitTest(x, y);
         if (hitProvince) {
@@ -69,17 +82,33 @@ export function setupInteraction(host: InteractionHost) {
           }
         }
       }
-      host.setInteractionMode('SELECT');
-      host.selectUnit(null);
+
+      // ALWAYS RESET MODE AFTER CLICK
+      setInteractionMode('SELECT');
+      host.mapEngine.updateCursorForMode('SELECT');
+      
+      // Keep unit selected so the move button remains visible
+      // Don't deselect - this allows issuing another move command
+      
+      // Exit early - don't process any other interactions in targeting mode
       return;
     }
 
-    // SELECT mode: unit first, then province, else deselect
+    // If we're in TARGETING mode but no unit selected, just reset mode
+    if (interactionMode === 'TARGETING') {
+      setInteractionMode('SELECT');
+      host.mapEngine.updateCursorForMode('SELECT');
+      return;
+    }
+
+    // ----------------------------------------------------
+    // SELECT MODE (Standard)
+    // ----------------------------------------------------
     const currentZoom = host.viewport.scale.x || 1;
     
     // A. Check Unit Hit (Top Layer)
     let clickedUnitId: string | null = null;
-      const radius = 20 / currentZoom; // Slightly larger hit area for selection
+    const radius = 20 / currentZoom;
     const r2 = radius * radius;
     for (const [id, sprite] of host.unitSprites) {
       const dx = sprite.x - x;
@@ -89,13 +118,13 @@ export function setupInteraction(host: InteractionHost) {
         break;
       }
     }
+    
     if (clickedUnitId) {
-      // Check ownership: only allow selecting player's own units
       const sprite = host.unitSprites.get(clickedUnitId) as any;
+      // Only select my own units
       if (sprite?.unitOwnerId === host.myPlayerId) {
-        // Select Unit, Deselect Province
-        host.selectUnit(clickedUnitId);
-        host.setSelectedProvinceId(null);
+        setSelectedUnitId(clickedUnitId);
+        setSelectedNodeId(null); // Deselect province
         host.provincesLayer?.highlight(null);
         return;
       }
@@ -104,23 +133,23 @@ export function setupInteraction(host: InteractionHost) {
     // B. Check Province Hit (Bottom Layer)
     const hit = host.provincesLayer?.hitTest(x, y);
     if (hit) {
-      const currentSelectedProvince = host.getSelectedProvinceId();
+      const currentSelectedProvince = useGameStore.getState().selectedNodeId;
       if (currentSelectedProvince === hit.id) {
         // Toggle off
-        host.setSelectedProvinceId(null);
+        setSelectedNodeId(null);
         host.provincesLayer?.highlight(null);
       } else {
-        // Select Province, Deselect Unit
-        host.selectUnit(null); // clear unit selection first so we don't wipe highlight
-        host.setSelectedProvinceId(hit.id);
+        // Select Province
+        setSelectedUnitId(null); // Deselect unit
+        setSelectedNodeId(hit.id);
         host.provincesLayer?.highlight(hit);
       }
       return;
     }
 
     // C. Void Click (Deselect All)
-    host.selectUnit(null);
-    host.setSelectedProvinceId(null);
+    setSelectedUnitId(null);
+    setSelectedNodeId(null);
     host.provincesLayer?.highlight(null);
   });
 }

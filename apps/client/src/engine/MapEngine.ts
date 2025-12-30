@@ -187,12 +187,9 @@ export class MapEngine implements IMapEngineState {
       nodesById: this.nodesById,
       socket: this.socket as unknown as Socket,
       myPlayerId: useGameStore.getState().myPlayerId,
-      getInteractionMode: () => this.interactionMode,
-      getSelectedUnitId: () => this.selectedUnitId,
-      getSelectedProvinceId: () => this.selectedProvinceId,
-      setInteractionMode: (m: InteractionMode) => this.setInteractionMode(m),
       selectUnit: (id: string | null) => this.selectUnit(id),
       setSelectedProvinceId: (id: string | null) => this.setSelectedProvinceId(id),
+      mapEngine: this,
     });
   }
 
@@ -236,6 +233,20 @@ export class MapEngine implements IMapEngineState {
     console.log(`🔄 Interaction Mode: ${mode}`);
     
     // Update Cursor
+    const canvas = this.app.view as HTMLCanvasElement;
+    if (mode === 'TARGETING') {
+      canvas.style.cursor = 'crosshair';
+    } else {
+      canvas.style.cursor = 'default';
+    }
+    
+    // Sync to store
+    useGameStore.setState({ interactionMode: mode });
+  }
+
+  // ✅ PUBLIC API: Called when interaction system changes mode
+  public updateCursorForMode(mode: InteractionMode) {
+    this.interactionMode = mode;
     const canvas = this.app.view as HTMLCanvasElement;
     if (mode === 'TARGETING') {
       canvas.style.cursor = 'crosshair';

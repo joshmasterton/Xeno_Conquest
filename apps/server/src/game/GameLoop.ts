@@ -11,6 +11,7 @@ import { processCombat } from './systems/DamageSystem';
 import { processConquest } from './systems/ConquestSystem';
 import { processResources } from './systems/ResourceSystem';
 import { processStacking } from './systems/StackingSystem';
+import { processRecruitment } from './systems/RecruitmentSystem';
 
 const STARTING_TROOPS = 20;
 const HP_PER_SOLDIER = 100;
@@ -136,9 +137,20 @@ export class GameLoop {
 	start(): void {
 		this.lastTick = Date.now();
 		const RESOURCE_TICK_MS = 1000;
+		
 		setInterval(() => {
 			processResources(Array.from(this.nodesById.values()), this.playerStates);
 		}, RESOURCE_TICK_MS);
+
+		// Recruitment Timer (every 60 seconds)
+		const RECRUITMENT_TICK_MS = 60000;
+		setInterval(() => {
+			processRecruitment(
+				this.units,
+				this.edges,
+				Array.from(this.nodesById.values())
+			);
+		}, RECRUITMENT_TICK_MS);
 
 		setInterval(() => {
 			const now = Date.now();

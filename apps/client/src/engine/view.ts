@@ -105,8 +105,9 @@ function updateUnitSprite(sprite: UnitSprite, serverUnit: { hp?: number; maxHp?:
 
   if (sprite.countLabel) {
     const count = serverUnit.count ?? 1;
-    sprite.countLabel.text = count > 1 ? `×${count}` : '';
-    sprite.countLabel.visible = count > 1;
+    // Always show the label, even for ×1
+    sprite.countLabel.text = `×${count}`;
+    sprite.countLabel.visible = true;
   }
 }
 
