@@ -5,6 +5,7 @@ import { findPath, edgeForStep } from './Pathing';
 // 0.05 = snaps to 5%, 10%, 15%...
 // 0.10 = snaps to 10%, 20%...
 const SNAP_STEP = 0.05;
+const HP_PER_SOLDIER = 100;
 
 export function processPlayerOrder(
   playerId: string,
@@ -38,27 +39,33 @@ export function processPlayerOrder(
     applyMoveToUnit(unit, order, edges, nodes);
   } else {
     // SPLIT: Create garrison and expedition
-    // 1. Reduce the garrison (stays behind)
-    unit.count -= order.splitCount!;
-    
-    // 2. Create the expedition force (moving out)
+    // 1. Calculate stats to remove
+    const soldiersLeaving = order.splitCount!;
+    const hpLeaving = soldiersLeaving * HP_PER_SOLDIER;
+
+    // 2. Reduce the parent unit (staying behind)
+    unit.count -= soldiersLeaving;
+    unit.hp -= hpLeaving;
+    unit.maxHp -= hpLeaving;
+
+    // 3. Create the expedition force (moving out)
     const newUnitId = `unit-${unit.ownerId}-${Date.now()}`;
     const newUnit: Unit = {
       ...unit,
       id: newUnitId,
-      count: order.splitCount!,
-      hp: order.splitCount! * 10, // 10 HP per soldier
-      maxHp: order.splitCount! * 10,
+      count: soldiersLeaving,
+      hp: hpLeaving,
+      maxHp: hpLeaving,
       state: 'IDLE',
       pathQueue: [],
       edgeId: unit.edgeId,
       distanceOnEdge: unit.distanceOnEdge,
     };
 
-    // 3. Command the new unit to move
+    // 4. Command the new unit to move
     applyMoveToUnit(newUnit, order, edges, nodes);
 
-    // 4. Add to world
+    // 5. Add to world
     units.push(newUnit);
     
     console.log(`⑂ SPLIT: Unit ${unit.id} kept ${unit.count}, new Unit ${newUnit.id} took ${newUnit.count}`);
@@ -227,4 +234,32 @@ function applyMoveToUnit(
         }
     }
   }
+}
+
+export function processUpgradeOrder(
+  playerId: string,
+  nodeId: string,
+  nodes: RoadNode[],
+  playerResources: Map<string, { gold: number; manpower: number }>
+): void {
+  const node = nodes.find(n => n.id === nodeId);
+
+  if (!node) return;
+  if (node.ownerId !== playerId) return;
+
+  // Current Level
+  const currentLevel = node.fortificationLevel ?? 1;
+  if (currentLevel >= 5) return; // Max Level reached
+
+  // Cost Calculation (Example: Lv2=200g, Lv3=300g...)
+  const cost = currentLevel * 100;
+
+  const resources = playerResources.get(playerId);
+  if (!resources || resources.gold < cost) return;
+
+  // Execute Upgrade
+  resources.gold -= cost;
+  node.fortificationLevel = currentLevel + 1;
+
+  console.log(`🏰 Node ${nodeId} upgraded to Lv ${node.fortificationLevel} by ${playerId}`);
 }

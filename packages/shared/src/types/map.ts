@@ -6,6 +6,7 @@ export interface RoadNode {
 	y: number;
 	ownerId?: string | null; // null means neutral
 	resourceYield?: Partial<PlayerResources>;
+	fortificationLevel?: number; // 1-5, damage reduction per level
 }
 
 export interface RoadEdge {

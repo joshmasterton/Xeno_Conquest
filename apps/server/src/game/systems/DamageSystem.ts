@@ -1,4 +1,4 @@
-import { type CombatPair, type Unit } from '@xeno/shared';
+import { type CombatPair, type Unit, type RoadEdge, type RoadNode } from '@xeno/shared';
 
 // CONFIG: How much health does ONE soldier have?
 const HP_PER_SOLDIER = 100;
@@ -6,7 +6,21 @@ const HP_PER_SOLDIER = 100;
 // Slowed for attrition-style combat (Supremacy-like pacing)
 const BASE_DPS = 0.5;
 
-export function processCombat(units: Unit[], pairs: CombatPair[], deltaTime: number): void {
+// Helper to find if unit is at a node
+function getUnitNodeId(unit: Unit, edges: RoadEdge[]): string | null {
+	const edge = edges.find(e => e.id === unit.edgeId);
+	if (!edge) return null;
+
+	// Tolerance for being "at" the node
+	const TOLERANCE = 5.0;
+
+	if (unit.distanceOnEdge <= TOLERANCE) return edge.sourceNodeId;
+	if (unit.distanceOnEdge >= edge.length - TOLERANCE) return edge.targetNodeId;
+
+	return null;
+}
+
+export function processCombat(units: Unit[], pairs: CombatPair[], deltaTime: number, edges?: RoadEdge[], nodes?: RoadNode[]): void {
 	if (!pairs.length) return;
 
 	const unitsById = new Map<string, Unit>(units.map((u) => [u.id, u]));
@@ -28,8 +42,35 @@ export function processCombat(units: Unit[], pairs: CombatPair[], deltaTime: num
 		const countA = Math.max(1, unitA.count);
 		const countB = Math.max(1, unitB.count);
 
-		const damageToA = (BASE_DPS * countB) * deltaTime;
-		const damageToB = (BASE_DPS * countA) * deltaTime;
+		let damageToA = (BASE_DPS * countB) * deltaTime;
+		let damageToB = (BASE_DPS * countA) * deltaTime;
+
+		// FORTIFICATION BONUS: Check if units are standing on friendly fortified nodes
+		if (edges && nodes) {
+			const nodesById = new Map(nodes.map(n => [n.id, n]));
+
+			// Unit A defending bonus
+			const nodeA = getUnitNodeId(unitA, edges);
+			if (nodeA) {
+				const nodeDataA = nodesById.get(nodeA);
+				if (nodeDataA && nodeDataA.ownerId === unitA.ownerId) {
+					const level = nodeDataA.fortificationLevel ?? 1;
+					const reductionPercent = Math.min(level * 0.10, 0.50);
+					damageToA = damageToA * (1.0 - reductionPercent);
+				}
+			}
+
+			// Unit B defending bonus
+			const nodeB = getUnitNodeId(unitB, edges);
+			if (nodeB) {
+				const nodeDataB = nodesById.get(nodeB);
+				if (nodeDataB && nodeDataB.ownerId === unitB.ownerId) {
+					const level = nodeDataB.fortificationLevel ?? 1;
+					const reductionPercent = Math.min(level * 0.10, 0.50);
+					damageToB = damageToB * (1.0 - reductionPercent);
+				}
+			}
+		}
 
 		// 2. Apply Damage to the Shared HP Pool
 		unitA.hp = Math.max(0, unitA.hp - damageToA);

@@ -1,4 +1,4 @@
-import { RoadEdge, Unit, worldGraph, TICK_RATE, EVENTS, BASE_NODE_IDS, type RoadNode, type MovementSegment, type MoveOrder, type PlayerResources } from '@xeno/shared';
+import { RoadEdge, Unit, worldGraph, TICK_RATE, EVENTS, BASE_NODE_IDS, type RoadNode, type MovementSegment, type MoveOrder, type PlayerResources, type UpgradeNodePayload } from '@xeno/shared';
 import { updateUnitPosition } from './systems/MovementSystem';
 import type { Server } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents } from '@xeno/shared';
@@ -6,7 +6,7 @@ import { findPath, edgeForStep } from './systems/Pathing';
 import { buildSegment, getUnitEdgePosition } from './systems/MovementView';
 import { detectProximity } from './systems/CombatSystem';
 import { createAIUnitsFromBases, updateAIUnits } from './systems/AISystem';
-import { processPlayerOrder } from './systems/PlayerOrderSystem';
+import { processPlayerOrder, processUpgradeOrder } from './systems/PlayerOrderSystem';
 import { processCombat } from './systems/DamageSystem';
 import { processConquest } from './systems/ConquestSystem';
 import { processResources } from './systems/ResourceSystem';
@@ -128,6 +128,9 @@ export class GameLoop {
 				});
 				console.log(`⚒️ Unit built by ${playerId} at node ${payload.nodeId}`);
 			});
+			socket.on(EVENTS.C_UPGRADE_NODE, (payload: UpgradeNodePayload) => {
+				processUpgradeOrder(playerId, payload.nodeId, Array.from(this.nodesById.values()), this.playerStates);
+			});
 			socket.on('disconnect', () => {
 				console.log(`❌ Client disconnected: ${socket.id}`);
 			});
@@ -179,7 +182,7 @@ export class GameLoop {
 
 			// Combat
 			const pairs = detectProximity(this.units, this.edges, this.nodesById);
-			processCombat(this.units, pairs, deltaTime);
+			processCombat(this.units, pairs, deltaTime, this.edges, Array.from(this.nodesById.values()));
 
 			// Remove dead units immediately to avoid ghost targets
 			const deadIds: string[] = [...absorbedIds];

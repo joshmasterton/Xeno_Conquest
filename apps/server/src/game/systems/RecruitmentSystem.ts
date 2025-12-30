@@ -1,4 +1,5 @@
 import type { Unit, RoadNode, RoadEdge } from '@xeno/shared';
+import { UNIT_BASE_SPEED } from '@xeno/shared';
 
 // CONFIG
 const RECRUIT_BATCH_SIZE = 1;
@@ -57,7 +58,7 @@ export function processRecruitment(
           distanceOnEdge: startDist,
           state: 'IDLE',
           pathQueue: [],
-          speed: 0,
+          speed: UNIT_BASE_SPEED,
           count: RECRUIT_BATCH_SIZE,
           hp: RECRUIT_BATCH_SIZE * HP_PER_SOLDIER,
           maxHp: RECRUIT_BATCH_SIZE * HP_PER_SOLDIER,

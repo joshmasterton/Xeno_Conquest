@@ -28,8 +28,7 @@ function ensureUnitSprite(host: IMapEngineState & MapEngine, serverUnit: { id: s
   g.beginFill(color);
   g.drawCircle(0, 0, 8);
   g.endFill();
-  g.interactive = true;
-  g.cursor = 'pointer';
+  g.interactive = false; // Allow clicks to pass through to the map/viewport
 
   // Health bar background
   const barBg = new Graphics();

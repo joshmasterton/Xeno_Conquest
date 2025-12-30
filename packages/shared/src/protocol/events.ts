@@ -6,6 +6,7 @@ export const EVENTS = {
   S_GAME_TICK: 'S_GAME_TICK',
   C_MOVE_ORDER: 'C_MOVE_ORDER',
   C_BUILD_UNIT: 'C_BUILD_UNIT',
+  C_UPGRADE_NODE: 'C_UPGRADE_NODE',
   COMBAT_EVENT: 'COMBAT_EVENT',
   UNIT_DEATH: 'UNIT_DEATH',
   S_UNIT_DEATH: 'S_UNIT_DEATH',
@@ -31,6 +32,10 @@ export interface MovementSegment {
 export interface BuildUnitPayload {
   nodeId: string;
   unitType: 'infantry';
+}
+
+export interface UpgradeNodePayload {
+  nodeId: string;
 }
 
 export interface CombatPair {
@@ -66,4 +71,5 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   [EVENTS.C_MOVE_ORDER]: (payload: MoveOrder) => void;
   [EVENTS.C_BUILD_UNIT]: (payload: BuildUnitPayload) => void;
+  [EVENTS.C_UPGRADE_NODE]: (payload: UpgradeNodePayload) => void;
 }

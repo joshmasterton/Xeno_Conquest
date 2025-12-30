@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { RoadNode } from '@xeno/shared';
 
 // Define the Mode Type
 export type InteractionMode = 'SELECT' | 'TARGETING';
@@ -11,6 +12,7 @@ export interface GameState {
 	selectedUnitId: string | null;
 	moveSplitPercent: number; // 0.0 to 1.0 (1.0 = Move All)
 	interactionMode: InteractionMode;
+	nodes: RoadNode[]; // Store the list of nodes
 	setResources: (gold: number, manpower: number) => void;
 	setPlayerId: (id: string) => void;
 	setSelectedNodeId: (id: string | null) => void;
@@ -28,6 +30,7 @@ export const useGameStore = create<GameState>((set) => ({
 	selectedUnitId: null,
 	moveSplitPercent: 1.0,
 	interactionMode: 'SELECT',
+	nodes: [],
 	setResources: (gold: number, manpower: number) => set({ gold, manpower }),
 	setPlayerId: (id: string) => set({ myPlayerId: id }),
 	setSelectedNodeId: (id: string | null) => set({ selectedNodeId: id }),
