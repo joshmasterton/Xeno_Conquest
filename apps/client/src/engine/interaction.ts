@@ -5,6 +5,7 @@ import { EVENTS, worldGraph, ensureProvinceNodeId, type RoadEdge, type RoadNode 
 import { ProvincesLayer } from './ProvincesLayer';
 import { findNearestEdge } from './edgeHitTest';
 import type { InteractionMode } from './MapEngine';
+import { useGameStore } from '../store/gameStore';
 
 export interface InteractionHost {
   viewport: Viewport;
@@ -33,12 +34,23 @@ export function setupInteraction(host: InteractionHost) {
         let orderSent = false;
         const currentZoom = host.viewport.scale.x || 1;
         const hitEdge = findNearestEdge(host.edges, host.nodesById, x, y, 40 / currentZoom);
+
+      // Split slider: read global percent and infer current unit count from sprite
+      const splitPercent = useGameStore.getState().moveSplitPercent;
+      const sprite = host.unitSprites.get(selectedUnitId) as any;
+      const currentCount = sprite?.serverUnit?.count ?? 1;
+      let splitCount: number | undefined = undefined;
+      if (splitPercent < 1.0) {
+        splitCount = Math.floor(currentCount * splitPercent);
+        if (splitCount < 1) splitCount = 1;
+      }
       if (hitEdge) {
         console.log('🎯 Order: Edge Target', hitEdge.edge.id);
         host.socket.emit(EVENTS.C_MOVE_ORDER, {
           unitId: selectedUnitId,
           targetEdgeId: hitEdge.edge.id,
           targetPercent: hitEdge.t,
+          splitCount,
         });
         orderSent = true;
       }
@@ -51,6 +63,7 @@ export function setupInteraction(host: InteractionHost) {
             host.socket.emit(EVENTS.C_MOVE_ORDER, {
               unitId: selectedUnitId,
               destNodeId: nodeId,
+              splitCount,
             });
             orderSent = true;
           }

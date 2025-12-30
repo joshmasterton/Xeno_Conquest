@@ -67,7 +67,7 @@ export const GameCanvas = () => {
             Unit Selected: {selectedUnit.substring(0, 8)}...
           </div>
 
-          {!isTargeting ? (
+          {!isTargeting && selectedUnit.startsWith('player') ? (
             <button 
               onClick={handleMoveClick}
               style={{
@@ -84,6 +84,11 @@ export const GameCanvas = () => {
               animation: 'pulse 1s infinite'
             }}>
               🎯 SELECT TARGET...
+            </div>
+          )}
+          {selectedUnit.startsWith('unit-') && (
+            <div style={{ color: '#aaa', fontSize: '12px', marginTop: '8px' }}>
+              (Enemy unit - no controls)
             </div>
           )}
         </div>

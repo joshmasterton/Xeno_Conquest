@@ -9,6 +9,7 @@ type UnitSprite = Graphics & {
   combatIcon?: Graphics;
   countLabel?: Text;
   unitOwnerId?: string;
+  serverUnit?: { count?: number };
 };
 
 function clamp01(value: number): number {
@@ -86,6 +87,7 @@ function ensureUnitSprite(host: IMapEngineState & MapEngine, serverUnit: { id: s
 }
 
 function updateUnitSprite(sprite: UnitSprite, serverUnit: { hp?: number; maxHp?: number; state?: string; count?: number }): void {
+  sprite.serverUnit = serverUnit;
   const maxHp = serverUnit.maxHp ?? 100;
   const hp = serverUnit.hp ?? maxHp;
   const ratio = maxHp > 0 ? clamp01(hp / maxHp) : 0;

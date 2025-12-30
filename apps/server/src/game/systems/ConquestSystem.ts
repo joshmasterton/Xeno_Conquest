@@ -21,27 +21,41 @@ function createBidirectionalEdges(edges: RoadEdge[]): RoadEdge[] {
 
 const edgesById = new Map<string, RoadEdge>(createBidirectionalEdges(worldGraph.edges).map((edge) => [edge.id, edge]));
 
+// CONFIG: "Drive-By" capture tolerance (px)
+// With UNIT_BASE_SPEED ~60px/sec and tick ~0.1s, a unit moves ~6px per tick.
+// Using a 12px radius guarantees node capture even if the unit skips exactly over distance 0/edge.length.
+const CAPTURE_RADIUS = 12.0;
+
 export function processConquest(units: Unit[], nodes: RoadNode[]): boolean {
 	const nodesById = new Map<string, RoadNode>(nodes.map((node) => [node.id, node]));
 	let captured = false;
 
 	for (const unit of units) {
+		// Skip dead units
+		if (unit.hp <= 0) continue;
+
 		const edge = edgesById.get(unit.edgeId);
 		if (!edge) continue;
 
-		const atStart = unit.distanceOnEdge <= 0;
-		const atEnd = unit.distanceOnEdge >= edge.length;
-		if (!atStart && !atEnd) continue;
+		// Drive-by capture: proximity to start node
+		if (unit.distanceOnEdge <= CAPTURE_RADIUS) {
+			const node = nodesById.get(edge.sourceNodeId);
+			if (node && node.ownerId !== unit.ownerId) {
+				node.ownerId = unit.ownerId ?? null;
+				captured = true;
+				console.log(`🚩 Drive-By: Node ${node.id} captured by ${unit.ownerId}`);
+			}
+		}
 
-		const nodeId = atStart ? edge.sourceNodeId : edge.targetNodeId;
-		const node = nodesById.get(nodeId);
-		if (!node) continue;
-
-		if (node.ownerId === unit.ownerId) continue;
-
-		node.ownerId = unit.ownerId ?? null;
-		captured = true;
-		console.log(`Node ${node.id} captured by ${unit.ownerId}`);
+		// Drive-by capture: proximity to end node
+		if (unit.distanceOnEdge >= edge.length - CAPTURE_RADIUS) {
+			const node = nodesById.get(edge.targetNodeId);
+			if (node && node.ownerId !== unit.ownerId) {
+				node.ownerId = unit.ownerId ?? null;
+				captured = true;
+				console.log(`🚩 Drive-By: Node ${node.id} captured by ${unit.ownerId}`);
+			}
+		}
 	}
 
 	return captured;

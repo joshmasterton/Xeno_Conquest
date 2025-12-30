@@ -3,7 +3,8 @@ import { type CombatPair, type Unit } from '@xeno/shared';
 // CONFIG: How much health does ONE soldier have?
 const HP_PER_SOLDIER = 100;
 // CONFIG: How much damage does ONE soldier deal per second?
-const BASE_DPS = 25;
+// Slowed for attrition-style combat (Supremacy-like pacing)
+const BASE_DPS = 0.5;
 
 export function processCombat(units: Unit[], pairs: CombatPair[], deltaTime: number): void {
 	if (!pairs.length) return;

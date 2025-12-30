@@ -8,9 +8,9 @@ export const CAPTURE_TIME_SEC = 0; // instant capture for now
 // Designated base nodes (spawn points) by node id
 // These should correspond to nodes present in world-graph.json
 export const BASE_NODE_IDS = [
-	'#000000',
-	'#eda400',
-	'#716388',
-	'#2721d2',
-	'#a28f55',
+	'#ccd417', // Player base (South-West, safe zone)
+	'#eda400', // AI 1 (North-West)
+	'#716388', // AI 2
+	'#2721d2', // AI 3
+	'#a28f55', // AI 4
 ];

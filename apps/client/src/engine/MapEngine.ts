@@ -209,6 +209,7 @@ export class MapEngine implements IMapEngineState {
     this.selectedUnitId = unitId;
     this.selectedProvinceId = null;
     this.provincesLayer?.highlight(null);
+    useGameStore.setState({ selectedUnitId: unitId });
     
     // Draw selection ring if selecting a unit
     if (unitId) {

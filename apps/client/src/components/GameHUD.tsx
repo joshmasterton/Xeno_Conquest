@@ -5,7 +5,12 @@ export const GameHUD: React.FC = () => {
 	const gold = useGameStore((s) => s.gold);
 	const manpower = useGameStore((s) => s.manpower);
 	const selectedNodeId = useGameStore((s) => s.selectedNodeId);
+	const selectedUnitId = useGameStore((s) => s.selectedUnitId);
 	const sendBuildOrder = useGameStore((s) => s.sendBuildOrder);
+	const moveSplitPercent = useGameStore((s) => s.moveSplitPercent);
+	const setMoveSplitPercent = useGameStore((s) => s.setMoveSplitPercent);
+
+	const percentDisplay = Math.round(moveSplitPercent * 100);
 
 	return (
 		<div
@@ -41,6 +46,34 @@ export const GameHUD: React.FC = () => {
 				>
 					Build Unit (50 Gold)
 				</button>
+			)}
+
+			{selectedUnitId && (
+				<div
+					style={{
+						marginTop: '8px',
+						background: '#333',
+						padding: '8px',
+						borderRadius: '4px',
+						pointerEvents: 'auto',
+					}}
+				>
+					<div style={{ marginBottom: '4px', fontSize: '12px' }}>
+						Orders: {percentDisplay === 100 ? 'Move All' : `Split ${percentDisplay}%`}
+					</div>
+					<input
+						type="range"
+						min="0.1"
+						max="1.0"
+						step="0.1"
+						value={moveSplitPercent}
+						onChange={(e) => setMoveSplitPercent(parseFloat(e.target.value))}
+						style={{ width: '100%', cursor: 'pointer' }}
+					/>
+					<div style={{ fontSize: '10px', color: '#aaa', marginTop: '2px' }}>
+						Drag to split army
+					</div>
+				</div>
 			)}
 		</div>
 	);

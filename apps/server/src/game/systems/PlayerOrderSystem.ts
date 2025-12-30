@@ -7,6 +7,7 @@ import { findPath, edgeForStep } from './Pathing';
 const SNAP_STEP = 0.05;
 
 export function processPlayerOrder(
+  playerId: string,
   order: MoveOrder,
   units: Unit[],
   edges: RoadEdge[],
@@ -16,6 +17,12 @@ export function processPlayerOrder(
   if (unitIndex === -1) return;
   
   const unit = units[unitIndex];
+
+  // SECURITY CHECK: Verify the player owns this unit
+  if (unit.ownerId !== playerId) {
+    console.warn(`WARNING: Player ${playerId} tried to move unit ${unit.id} belonging to ${unit.ownerId}`);
+    return;
+  }
 
   // Determine if this is a SPLIT or a FULL MOVE
   const moveAll = !order.splitCount || order.splitCount >= unit.count;

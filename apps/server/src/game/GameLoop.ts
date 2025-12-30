@@ -90,7 +90,7 @@ export class GameLoop {
 			}
 			socket.on(EVENTS.C_MOVE_ORDER, (order: MoveOrder) => {
 				console.log(`📍 Order received: unit ${order.unitId} → node ${order.destNodeId}`);
-				processPlayerOrder(order, this.units, this.edges, Array.from(this.nodesById.values()));
+				processPlayerOrder(playerId, order, this.units, this.edges, Array.from(this.nodesById.values()));
 				const unit = this.units.find((u) => u.id === order.unitId);
 				if (unit) {
 					console.log(`✓ Unit updated: edgeId=${unit.edgeId}, pathQueue=[${unit.pathQueue?.join(', ') || 'empty'}]`);
