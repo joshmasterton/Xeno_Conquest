@@ -30,9 +30,6 @@ function ensureUnitSprite(host: IMapEngineState & MapEngine, serverUnit: { id: s
   g.endFill();
   g.interactive = true;
   g.cursor = 'pointer';
-  g.on('pointerdown', () => {
-    host.selectUnit(serverUnit.id);
-  });
 
   // Health bar background
   const barBg = new Graphics();

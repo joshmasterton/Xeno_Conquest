@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 
+// Define the Mode Type
+export type InteractionMode = 'SELECT' | 'TARGETING';
+
 export interface GameState {
 	gold: number;
 	manpower: number;
@@ -7,11 +10,13 @@ export interface GameState {
 	selectedNodeId: string | null;
 	selectedUnitId: string | null;
 	moveSplitPercent: number; // 0.0 to 1.0 (1.0 = Move All)
+	interactionMode: InteractionMode;
 	setResources: (gold: number, manpower: number) => void;
 	setPlayerId: (id: string) => void;
 	setSelectedNodeId: (id: string | null) => void;
 	setSelectedUnitId: (id: string | null) => void;
 	setMoveSplitPercent: (p: number) => void;
+	setInteractionMode: (mode: InteractionMode) => void;
 	sendBuildOrder: (nodeId: string) => void;
 }
 
@@ -22,10 +27,12 @@ export const useGameStore = create<GameState>((set) => ({
 	selectedNodeId: null,
 	selectedUnitId: null,
 	moveSplitPercent: 1.0,
+	interactionMode: 'SELECT',
 	setResources: (gold: number, manpower: number) => set({ gold, manpower }),
 	setPlayerId: (id: string) => set({ myPlayerId: id }),
 	setSelectedNodeId: (id: string | null) => set({ selectedNodeId: id }),
 	setSelectedUnitId: (id: string | null) => set({ selectedUnitId: id }),
 	setMoveSplitPercent: (p: number) => set({ moveSplitPercent: p }),
+	setInteractionMode: (mode: InteractionMode) => set({ interactionMode: mode }),
 	sendBuildOrder: () => undefined,
 }));
