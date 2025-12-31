@@ -5,16 +5,19 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@xeno/shared';
 import { findPath, edgeForStep } from './systems/Pathing';
 import { buildSegment, getUnitEdgePosition } from './systems/MovementView';
 import { detectProximity } from './systems/CombatSystem';
-import { createAIUnitsFromBases, updateAIUnits } from './systems/AISystem';
+import { createAIUnitsFromBases, updateAIUnits, processAIEconomy } from './systems/AISystem';
 import { processPlayerOrder, processUpgradeOrder } from './systems/PlayerOrderSystem';
 import { processCombat } from './systems/DamageSystem';
 import { processConquest } from './systems/ConquestSystem';
 import { processResources } from './systems/ResourceSystem';
 import { processStacking } from './systems/StackingSystem';
 import { processRecruitment } from './systems/RecruitmentSystem';
+import { StateManager } from './state/StateManager';
 
 const STARTING_TROOPS = 20;
 const HP_PER_SOLDIER = 100;
+const SAVE_INTERVAL_MS = 30000; // Save every 30 seconds
+const UNIT_CAP = 50; // Maximum units per faction
 
 function createBidirectionalEdges(edges: RoadEdge[]): RoadEdge[] {
 	const key = (a: string, b: string) => `${a}->${b}`;
@@ -38,68 +41,101 @@ export class GameLoop {
 	private readonly nodesById: Map<string, RoadNode>;
 	private readonly playerStates: Map<string, PlayerResources> = new Map();
 	private lastTick = Date.now();
+	private stateManager: StateManager;
 
 	constructor(io: Server<ClientToServerEvents, ServerToClientEvents>) {
 		this.io = io;
+		this.stateManager = new StateManager();
 		this.edges = createBidirectionalEdges(worldGraph.edges);
-		this.edgesMap = new Map(this.edges.map((e) => [e.id, e])); // ✅ Build O(1) map
+		this.edgesMap = new Map(this.edges.map((e) => [e.id, e]));
 		this.nodesById = new Map(worldGraph.nodes.map((n) => [n.id, n]));
+		this.units = []; // Init empty
 		console.log(`Loaded ${this.edges.length} edges from world graph.`);
 
-		// Initialize province yields if missing
-		for (const node of this.nodesById.values()) {
-			if (!node.resourceYield) {
-				node.resourceYield = {
-					gold: Math.floor(Math.random() * 5) + 1, // 1-5 gold per tick (never zero)
-					manpower: Math.floor(Math.random() * 3) + 1, // 1-3 manpower per tick (steady)
-				};
+		// Initialize game asynchronously (load save or start new game)
+		this.initializeGame();
+	}
+
+	private async initializeGame() {
+		const loadedState = await this.stateManager.load();
+
+		if (loadedState) {
+			// --- RESTORE SAVE ---
+			console.log('📂 Restoring saved game state...');
+			
+			// 1. Restore Units
+			this.units.push(...loadedState.units);
+			
+			// 2. Restore Nodes (Ownership/Fortification)
+			for (const savedNode of loadedState.nodes) {
+				const memoryNode = this.nodesById.get(savedNode.id);
+				if (memoryNode) {
+					Object.assign(memoryNode, savedNode);
+				}
 			}
-		}
-		console.log('💰 Economy initialized: Provinces assigned resource yields.');
 
-		// Initialize players with starter boost
-		this.playerStates.set('player-1', { gold: 100, manpower: 200 });
-
-		// Supremacy spawn logic
-		const playerBaseId = BASE_NODE_IDS[0];
-		const aiBaseIds = BASE_NODE_IDS.slice(1);
-
-		// Force ownership of the starting base to the player
-		const playerBase = this.nodesById.get(playerBaseId);
-		if (playerBase) {
-			playerBase.ownerId = 'player-1';
-			console.log(`✅ Assigned Base ${playerBaseId} to player-1`);
-		}
-
-		console.log(`🗺️ Map Setup: Player at ${playerBaseId}, AI at ${aiBaseIds.join(', ')}`);
-
-		// Spawn player army at its base
-		const pOutgoing = this.edges.filter((e) => e.sourceNodeId === playerBaseId);
-		const pStartEdge = pOutgoing[0] ?? this.edges.find((e) => e.targetNodeId === playerBaseId);
-		this.units = [];
-		if (pStartEdge) {
-			this.units.push({
-				id: 'player-1-army',
-				edgeId: pStartEdge.id,
-				distanceOnEdge: 0,
-				speed: 60,
-				ownerId: 'player-1',
-				pathQueue: [],
-				state: 'IDLE',
-				count: STARTING_TROOPS,
-				hp: STARTING_TROOPS * HP_PER_SOLDIER,
-				maxHp: STARTING_TROOPS * HP_PER_SOLDIER,
-			});
-			console.log(`✅ Player Army spawned at ${playerBaseId}`);
+			// 3. Restore Players
+			for (const [id, res] of loadedState.players) {
+				this.playerStates.set(id, res);
+			}
 		} else {
-			console.error(`❌ CRITICAL: Player Base ${playerBaseId} has no connected roads!`);
+			// --- NEW GAME SETUP ---
+			console.log('✨ Starting new game...');
+			
+			// Initialize province yields if missing
+			for (const node of this.nodesById.values()) {
+				if (!node.resourceYield) {
+					node.resourceYield = {
+						gold: Math.floor(Math.random() * 5) + 1,
+						manpower: Math.floor(Math.random() * 3) + 1,
+					};
+				}
+			}
+			console.log('💰 Economy initialized.');
+
+			// Initialize players with starter resources
+			this.playerStates.set('player-1', { gold: 100, manpower: 200 });
+
+			const playerBaseId = BASE_NODE_IDS[0];
+			const aiBaseIds = BASE_NODE_IDS.slice(1);
+
+			// Assign player base ownership
+			const playerBase = this.nodesById.get(playerBaseId);
+			if (playerBase) {
+				playerBase.ownerId = 'player-1';
+				console.log(`✅ Assigned Base ${playerBaseId} to player-1`);
+			}
+
+			// Spawn player army
+			const pOutgoing = this.edges.filter((e) => e.sourceNodeId === playerBaseId);
+			const pStartEdge = pOutgoing[0] ?? this.edges.find((e) => e.targetNodeId === playerBaseId);
+			
+			if (pStartEdge) {
+				this.units.push({
+					id: 'player-1-army',
+					edgeId: pStartEdge.id,
+					distanceOnEdge: 0,
+					speed: 60,
+					ownerId: 'player-1',
+					pathQueue: [],
+					state: 'IDLE',
+					count: STARTING_TROOPS,
+					hp: STARTING_TROOPS * HP_PER_SOLDIER,
+					maxHp: STARTING_TROOPS * HP_PER_SOLDIER,
+				});
+				console.log(`✅ Player Army spawned at ${playerBaseId}`);
+			}
+
+			// Spawn AI armies
+			const aiUnits = createAIUnitsFromBases(aiBaseIds.length, this.edges, worldGraph.nodes, aiBaseIds);
+			this.units.push(...aiUnits);
 		}
 
-		// Spawn one AI army per remaining base
-		const aiUnits = createAIUnitsFromBases(aiBaseIds.length, this.edges, worldGraph.nodes, aiBaseIds);
-		this.units.push(...aiUnits);
+		// Setup Socket Listeners
+		this.setupSocketListeners();
+	}
 
-		// Listen for player move orders
+	private setupSocketListeners() {
 		console.log('🔌 Setting up Socket.IO event listeners...');
 		this.io.on('connection', (socket) => {
 			console.log(`✅ Client connected: ${socket.id}`);
@@ -121,6 +157,13 @@ export class GameLoop {
 					const player = this.playerStates.get(playerId);
 					if (!player) return;
 
+					// Check Unit Cap
+					const playerUnitCount = this.units.filter(u => u.ownerId === playerId).length;
+					if (playerUnitCount >= UNIT_CAP) {
+						console.log(`🚫 Unit cap reached for ${playerId} (${playerUnitCount}/${UNIT_CAP})`);
+						return;
+					}
+
 					const node = this.nodesById.get(payload.nodeId);
 					if (!node || node.ownerId !== playerId) return;
 					if (player.gold < GOLD_COST || player.manpower < MANPOWER_COST) return;
@@ -134,6 +177,10 @@ export class GameLoop {
 				const startEdge = outgoing[0] ?? fallbackIncoming[0] ?? this.edges[0];
 
 				const unitId = `built-${playerId}-${Date.now()}`;
+				
+				// CHANGED: Build 1 soldier instead of STARTING_TROOPS
+				const BUILD_AMOUNT = 1;
+				
 				this.units.push({
 					id: unitId,
 					edgeId: startEdge.id,
@@ -141,12 +188,12 @@ export class GameLoop {
 					speed: 60,
 					ownerId: playerId,
 					pathQueue: [],
-					hp: STARTING_TROOPS * HP_PER_SOLDIER,
-					maxHp: STARTING_TROOPS * HP_PER_SOLDIER,
+					hp: BUILD_AMOUNT * HP_PER_SOLDIER,
+					maxHp: BUILD_AMOUNT * HP_PER_SOLDIER,
 					state: 'IDLE',
-					count: STARTING_TROOPS,
+					count: BUILD_AMOUNT,
 				});
-				console.log(`⚒️ Unit built by ${playerId} at node ${payload.nodeId}`);
+				console.log(`⚒️ Unit built by ${playerId} at node ${payload.nodeId} (Size: ${BUILD_AMOUNT})`);
 			});
 			socket.on(EVENTS.C_UPGRADE_NODE, (payload: UpgradeNodePayload) => {
 				processUpgradeOrder(playerId, payload.nodeId, Array.from(this.nodesById.values()), this.playerStates);
@@ -175,6 +222,25 @@ export class GameLoop {
 				this.playerStates
 			);
 		}, RECRUITMENT_TICK_MS);
+
+		// AI Economy Tick (every 5 seconds)
+		setInterval(() => {
+			processAIEconomy(
+				Array.from(this.nodesById.values()),
+				this.units,
+				this.playerStates,
+				this.edges
+			);
+		}, 5000);
+
+		// Auto-Save Timer (every 30 seconds)
+		setInterval(() => {
+			this.stateManager.save(
+				this.units,
+				Array.from(this.nodesById.values()),
+				this.playerStates
+			);
+		}, SAVE_INTERVAL_MS);
 
 		setInterval(() => {
 			const now = Date.now();

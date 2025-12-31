@@ -1,10 +1,14 @@
-import type { Unit, RoadEdge, RoadNode } from '@xeno/shared';
+import type { Unit, RoadEdge, RoadNode, PlayerResources } from '@xeno/shared';
 import { UNIT_BASE_SPEED } from '@xeno/shared';
 import { findPath, edgeForStep } from './Pathing';
 
 const AI_TROOPS = 20;
 const HP_PER_SOLDIER = 100;
 const SPLIT_THRESHOLD = 30; // Larger stacks before splitting
+
+// COSTS (Must match GameLoop/PlayerOrderSystem)
+const BUILD_COST_GOLD = 100;
+const BUILD_COST_MANPOWER = 50;
 
 // --------------------------------------------------------------------------
 // 🧠 AI STATE & PERSONALITY
@@ -64,6 +68,84 @@ function findBestTarget(
 	}
 
 	return nearest ? nearest.id : null;
+}
+
+// --------------------------------------------------------------------------
+// 💰 AI ECONOMY SYSTEM
+// --------------------------------------------------------------------------
+
+export function processAIEconomy(
+	nodes: RoadNode[],
+	units: Unit[],
+	playerStates: Map<string, PlayerResources>,
+	edges: RoadEdge[]
+): void {
+	// 1. Identify AI Factions
+	const aiFactions = Array.from(playerStates.keys()).filter((id) => id.startsWith('ai_'));
+
+	for (const factionId of aiFactions) {
+		const resources = playerStates.get(factionId);
+		if (!resources) continue;
+
+		const personality = getPersonality(factionId);
+		const myNodes = nodes.filter((n) => n.ownerId === factionId);
+
+		if (myNodes.length === 0) continue;
+
+		// 2. LOGIC: UPGRADE NODES
+		// Defensive/Expansionist AIs love forts
+		if (personality === 'DEFENSIVE' || personality === 'EXPANSIONIST') {
+			// Find a non-maxed node
+			const upgradeable = myNodes.find((n) => (n.fortificationLevel ?? 1) < 5);
+			if (upgradeable) {
+				const currentLevel = upgradeable.fortificationLevel ?? 1;
+				const cost = currentLevel * 100;
+
+				if (resources.gold >= cost + 50) { // Keep 50g buffer
+					resources.gold -= cost;
+					upgradeable.fortificationLevel = currentLevel + 1;
+					console.log(`🏰 AI ${factionId} upgraded Node ${upgradeable.id} to Lv ${upgradeable.fortificationLevel}`);
+				}
+			}
+		}
+
+		// 3. LOGIC: BUILD UNITS
+		// Everyone needs troops, especially Aggressive AIs
+		// Require a buffer so they don't go bankrupt immediately
+		if (resources.gold >= BUILD_COST_GOLD + 50 && resources.manpower >= BUILD_COST_MANPOWER) {
+			
+			// Pick a spawn point (random for simplicity)
+			const spawnNode = myNodes[Math.floor(Math.random() * myNodes.length)];
+
+			// Deduct Cost
+			resources.gold -= BUILD_COST_GOLD;
+			resources.manpower -= BUILD_COST_MANPOWER;
+
+			// Spawn Unit (Logic similar to GameLoop C_BUILD_UNIT)
+			const outgoing = edges.filter((e) => e.sourceNodeId === spawnNode.id);
+			const fallback = edges.filter((e) => e.targetNodeId === spawnNode.id);
+			const startEdge = outgoing[0] ?? fallback[0];
+
+			if (startEdge) {
+				const uId = `ai-built-${factionId}-${Date.now()}`;
+				units.push({
+					id: uId,
+					edgeId: startEdge.id,
+					distanceOnEdge: 0,
+					speed: UNIT_BASE_SPEED,
+					ownerId: factionId,
+					pathQueue: [],
+					state: 'IDLE',
+					count: AI_TROOPS,
+					hp: AI_TROOPS * HP_PER_SOLDIER,
+					maxHp: AI_TROOPS * HP_PER_SOLDIER,
+				});
+				// Give it a moment before moving
+				unitDecisionTimers.set(uId, Date.now() + 5000);
+				console.log(`⚒️ AI ${factionId} built army at ${spawnNode.id}`);
+			}
+		}
+	}
 }
 
 // --------------------------------------------------------------------------

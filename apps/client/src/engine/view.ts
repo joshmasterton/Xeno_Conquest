@@ -1,4 +1,4 @@
-import { Graphics, Text, TextStyle } from 'pixi.js';
+import { Graphics } from 'pixi.js';
 import type { ServerGameTick } from '@xeno/shared';
 import { getFactionColor } from '@xeno/shared';
 import type { MapEngine } from './MapEngine';
@@ -8,7 +8,6 @@ export type UnitSprite = Graphics & {
   hpBarBg?: Graphics;
   hpBarFg?: Graphics;
   combatIcon?: Graphics;
-  countLabel?: Text;
   unitOwnerId?: string;
   serverUnit?: { count?: number };
 };
@@ -62,25 +61,7 @@ function ensureUnitSprite(host: MapEngine, serverUnit: { id: string; ownerId: st
   g.addChild(combatIcon);
   g.combatIcon = combatIcon;
 
-  // HD Count Label (supersampled)
-  const countStyle = new TextStyle({
-    fontFamily: 'Arial',
-    fontSize: 36,
-    fill: '#ffffff',
-    fontWeight: '900',
-    stroke: '#000000',
-    strokeThickness: 6,
-    dropShadow: true,
-    dropShadowDistance: 2,
-    dropShadowBlur: 2,
-  });
-  const countLabel = new Text('', countStyle);
-  countLabel.anchor.set(0.5);
-  countLabel.position.set(0, -30);
-  countLabel.resolution = 2;
-  countLabel.scale.set(0.33);
-  g.addChild(countLabel);
-  g.countLabel = countLabel;
+  // NOTE: countLabel is now managed by LabelSystem, not as a child of the sprite
 
   host.viewport.addChild(g);
   host.unitSprites.set(serverUnit.id, g);
@@ -105,11 +86,7 @@ function updateUnitSprite(sprite: UnitSprite, serverUnit: { hp?: number; maxHp?:
     sprite.combatIcon.visible = serverUnit.state === 'COMBAT';
   }
 
-  if (sprite.countLabel) {
-    const count = serverUnit.count ?? 1;
-    sprite.countLabel.text = `${count}`;
-    sprite.countLabel.visible = true;
-  }
+  // NOTE: countLabel is now managed by LabelSystem via syncUnitLabels()
 }
 
 export function handleGameTick(host: MapEngine, data: ServerGameTick) {

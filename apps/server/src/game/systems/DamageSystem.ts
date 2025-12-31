@@ -21,7 +21,8 @@ function getUnitNodeId(unit: Unit, edges: RoadEdge[]): string | null {
 }
 
 export function processCombat(units: Unit[], pairs: CombatPair[], deltaTime: number, edges?: RoadEdge[], nodes?: RoadNode[]): void {
-	if (!pairs.length) return;
+	// BUG FIX: Removed "if (!pairs.length) return;" 
+	// We MUST run the cleanup loop at the bottom even if no combat is happening this tick.
 
 	const unitsById = new Map<string, Unit>(units.map((u) => [u.id, u]));
 	const fightingUnitIds = new Set<string>();
@@ -82,6 +83,8 @@ export function processCombat(units: Unit[], pairs: CombatPair[], deltaTime: num
 		unitB.count = Math.ceil(unitB.hp / HP_PER_SOLDIER);
 	}
 
+	// 4. CLEANUP: Reset units that are no longer fighting
+	// This ensures that if a unit's enemy died last tick, it stops "fighting" nothing.
 	for (const unit of units) {
 		if (unit.state === 'COMBAT' && !fightingUnitIds.has(unit.id)) {
 			const hasPath = !!(unit.pathQueue && unit.pathQueue.length > 0);

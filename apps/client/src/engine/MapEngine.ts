@@ -19,7 +19,7 @@ import { setupInteraction } from './interaction';
 import { handleTick } from './tick';
 import { handleGameTick, flashUnit, type UnitSprite } from './view';
 import { useGameStore } from '../store/gameStore';
-import { createLabelSystem, destroyLabelSystem, syncYieldLabels, updateLabelTargets, animateLabels, type LabelSystem } from './labelSystem';
+import { createLabelSystem, destroyLabelSystem, syncYieldLabels, syncUnitLabels, updateLabelTargets, animateLabels, type LabelSystem } from './labelSystem';
 
 type RendererWithEvents = Renderer & { events: EventSystem };
 
@@ -231,21 +231,14 @@ export class MapEngine {
   private updateTextScaling() {
     // FIXED: Clamp set to 0.05 to allow text scaling in macro view
     const zoom = Math.max(this.viewport.scale.x, 0.05);
-    const labelScale = 0.33 / zoom;
-    
-    // FIXED: Significantly reduced offsets to prevent labels shooting off screen
-    const unitOffset = 16 + 4 / zoom;
-    
-    updateLabelTargets(this.labelSystem, this.latestNodes, this.unitSprites, zoom, unitOffset);
-    for (const label of this.labelSystem.labels.values()) label.scale.set(labelScale);
 
-    const unitScale = 0.33 / zoom;
-    for (const sprite of this.unitSprites.values()) {
-      if (sprite.countLabel) {
-        sprite.countLabel.scale.set(unitScale);
-        sprite.countLabel.position.set(0, -unitOffset);
-      }
-    }
+    // Sync unit labels (create/destroy based on current sprites)
+    syncUnitLabels(this.labelSystem, this.unitSprites);
+
+    // Calculate targets for both Units and Resources (Handles stacking)
+    updateLabelTargets(this.labelSystem, this.latestNodes, this.unitSprites, zoom);
+
+    // NOTE: Label scaling is now handled inside updateLabelTargets
   }
 
   public destroy() {

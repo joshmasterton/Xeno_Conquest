@@ -6,6 +6,7 @@ const RECRUIT_BATCH_SIZE = 1;
 const HP_PER_SOLDIER = 100;
 const MERGE_DIST_THRESHOLD = 5.0; // Allow merging if within 5 units of the node
 const MANPOWER_PER_SOLDIER = 10;
+const UNIT_CAP = 50;
 
 export function processRecruitment(
   units: Unit[], 
@@ -15,6 +16,13 @@ export function processRecruitment(
 ): void {
   const now = Date.now();
   const edgesById = new Map(edges.map(e => [e.id, e]));
+  
+  // Pre-calculate unit counts per faction for O(1) lookups
+  const factionUnitCounts = new Map<string, number>();
+  for (const unit of units) {
+    const current = factionUnitCounts.get(unit.ownerId) || 0;
+    factionUnitCounts.set(unit.ownerId, current + 1);
+  }
 
   for (const node of nodes) {
     if (!node.ownerId) continue;
@@ -50,7 +58,10 @@ export function processRecruitment(
       existingGarrison.hp += RECRUIT_BATCH_SIZE * HP_PER_SOLDIER;
       existingGarrison.maxHp += RECRUIT_BATCH_SIZE * HP_PER_SOLDIER;
     } else {
-      // 3. SPAWN NEW (Fallback logic if empty)
+      // 3. SPAWN NEW (Fallback logic if empty) - respecting unit cap
+      const currentCount = factionUnitCounts.get(node.ownerId) || 0;
+      if (currentCount >= UNIT_CAP) continue;
+      
       let spawnEdge = edges.find(e => e.sourceNodeId === node.id);
       let startDist = 0;
 
@@ -72,6 +83,9 @@ export function processRecruitment(
           hp: RECRUIT_BATCH_SIZE * HP_PER_SOLDIER,
           maxHp: RECRUIT_BATCH_SIZE * HP_PER_SOLDIER,
         });
+        
+        // Update faction unit count after spawning
+        factionUnitCounts.set(node.ownerId, currentCount + 1);
       }
     }
   }
