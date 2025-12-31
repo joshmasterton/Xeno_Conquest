@@ -36,9 +36,10 @@ export function handleTick(host: IMapEngineState & MapEngine) {
   // LOD
   const currentZoom = host.viewport.scale.x;
   const macro = currentZoom < 0.2;
-  for (const sprite of host.unitSprites.values()) {
-    (sprite as Graphics).visible = !macro;
-  }
+  
+  // FIXED: Removed the loop that hid units when macro === true.
+  // Units (and their counts) will now stay visible at all zoom levels.
+
   if (host.railsLayer) host.railsLayer.alpha = macro ? 0.15 : 0.3;
   if (host.provincesLayer) host.provincesLayer.setVisible(true);
 }

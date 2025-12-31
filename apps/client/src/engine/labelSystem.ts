@@ -53,7 +53,8 @@ export function syncYieldLabels(system: LabelSystem, nodes: RoadNode[]): void {
 }
 
 export function updateLabelTargets(system: LabelSystem, nodes: RoadNode[], unitSprites: Map<string, Graphics>, zoom: number, unitLabelOffset: number): void {
-  const safeZoom = Math.max(zoom, 0.2);
+  // FIXED: Lowered clamp to 0.05
+  const safeZoom = Math.max(zoom, 0.05);
   const occupied = new Set<string>();
   for (const sprite of unitSprites.values()) {
     for (const node of nodes) {
@@ -63,9 +64,10 @@ export function updateLabelTargets(system: LabelSystem, nodes: RoadNode[], unitS
     }
   }
 
-  const screenGapPx = 35; // desired on-screen gap between unit and resource labels
-  const emptyWorldBase = 8; // minimal clearance above node when unoccupied
-  const emptyScreenPadPx = 20; // keep readable even when zoomed in
+  // FIXED: Reduced screen gaps
+  const screenGapPx = 12; 
+  const emptyWorldBase = 8;
+  const emptyScreenPadPx = 10;
 
   for (const node of nodes) {
     if (!system.labels.has(node.id)) continue;

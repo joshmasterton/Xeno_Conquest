@@ -186,10 +186,8 @@ export class GameLoop {
 				const edge = this.edgesMap.get(unit.edgeId); // ✅ O(1)
 				if (!edge) continue;
 
-				updateUnitPosition(unit, edge, this.edges, deltaTime);
-				if (unit.id === 'player-1') {
-					console.log(`🎮 player-1: distance=${unit.distanceOnEdge.toFixed(1)}/${edge.length}, pathQueue=[${unit.pathQueue?.join(', ') || 'empty'}]`);
-				}
+				// FIXED: Pass edgesMap instead of edges array for O(1) lookups
+				updateUnitPosition(unit, edge, this.edgesMap, deltaTime);
 			}
 
 			// Conquest

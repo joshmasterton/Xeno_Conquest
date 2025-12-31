@@ -3,15 +3,16 @@ import { RoadEdge, Unit } from '@xeno/shared';
 export function updateUnitPosition(
 	unit: Unit,
 	edge: RoadEdge,
-	allEdges: RoadEdge[],
+	edgesById: Map<string, RoadEdge>,
 	deltaTime: number
 ): Unit {
 	if (unit.state === 'COMBAT') return unit;
 	// Helper: Check if two edges are physically the same road (Forward or Reverse)
+	// FIXED: Changed from O(N) array.find() to O(1) Map.get()
 	const isSameRoad = (idA: string, idB: string) => {
 		if (idA === idB) return true;
-		const a = allEdges.find(e => e.id === idA);
-		const b = allEdges.find(e => e.id === idB);
+		const a = edgesById.get(idA);
+		const b = edgesById.get(idB);
 		if (!a || !b) return false;
 		// Check if they connect the same nodes (regardless of direction)
 		return (a.sourceNodeId === b.sourceNodeId && a.targetNodeId === b.targetNodeId) ||
@@ -76,16 +77,25 @@ export function updateUnitPosition(
 		const nextTargetNodeId = unit.pathQueue[0];
 
 		// FIND NEXT EDGE
+		// FIXED: Changed from O(N) array.find() to O(N) Map iteration
+		// TODO: Could optimize further with a Map<sourceNodeId, RoadEdge[]> lookup table
 		// Prefer the specific target edge ID if it matches
-		let nextEdge = allEdges.find(
-			(e) => e.id === unit.targetEdgeId && e.sourceNodeId === atNodeId && e.targetNodeId === nextTargetNodeId
-		);
+		let nextEdge: RoadEdge | undefined;
+		if (unit.targetEdgeId) {
+			const candidate = edgesById.get(unit.targetEdgeId);
+			if (candidate && candidate.sourceNodeId === atNodeId && candidate.targetNodeId === nextTargetNodeId) {
+				nextEdge = candidate;
+			}
+		}
 
 		// Fallback to any valid edge
 		if (!nextEdge) {
-			nextEdge = allEdges.find(
-				(e) => e.sourceNodeId === atNodeId && e.targetNodeId === nextTargetNodeId
-			);
+			for (const e of edgesById.values()) {
+				if (e.sourceNodeId === atNodeId && e.targetNodeId === nextTargetNodeId) {
+					nextEdge = e;
+					break;
+				}
+			}
 		}
 
 		if (!nextEdge) {

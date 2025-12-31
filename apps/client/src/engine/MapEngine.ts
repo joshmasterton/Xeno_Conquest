@@ -229,9 +229,13 @@ export class MapEngine {
   }
 
   private updateTextScaling() {
-    const zoom = Math.max(this.viewport.scale.x, 0.2);
+    // FIXED: Clamp set to 0.05 to allow text scaling in macro view
+    const zoom = Math.max(this.viewport.scale.x, 0.05);
     const labelScale = 0.33 / zoom;
-    const unitOffset = 25 + 12 / zoom; // world clearance + screen padding
+    
+    // FIXED: Significantly reduced offsets to prevent labels shooting off screen
+    const unitOffset = 16 + 4 / zoom;
+    
     updateLabelTargets(this.labelSystem, this.latestNodes, this.unitSprites, zoom, unitOffset);
     for (const label of this.labelSystem.labels.values()) label.scale.set(labelScale);
 
