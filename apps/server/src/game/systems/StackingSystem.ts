@@ -1,7 +1,7 @@
 import type { Unit, RoadEdge } from '@xeno/shared';
 
-// Keep this radius reasonably small/standard
-const MERGE_THRESHOLD = 5.0;
+// Merge radius for stacking checks
+const MERGE_THRESHOLD = 20.0;
 
 export function processStacking(units: Unit[], edges: RoadEdge[]): string[] {
 	const deadIds: string[] = [];
@@ -34,6 +34,7 @@ export function processStacking(units: Unit[], edges: RoadEdge[]): string[] {
 			const u2 = list[i + 1];
 
 			if (u1.ownerId !== u2.ownerId) continue;
+			if (u1.state === 'MOVING' || u2.state === 'MOVING') continue;
 
 			// Check distance
 			const dist = Math.abs(u1.distanceOnEdge - u2.distanceOnEdge);

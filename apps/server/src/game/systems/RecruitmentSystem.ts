@@ -1,21 +1,30 @@
-import type { Unit, RoadNode, RoadEdge } from '@xeno/shared';
+import type { Unit, RoadNode, RoadEdge, PlayerResources } from '@xeno/shared';
 import { UNIT_BASE_SPEED } from '@xeno/shared';
 
 // CONFIG
 const RECRUIT_BATCH_SIZE = 1;
 const HP_PER_SOLDIER = 100;
 const MERGE_DIST_THRESHOLD = 5.0; // Allow merging if within 5 units of the node
+const MANPOWER_PER_SOLDIER = 10;
 
 export function processRecruitment(
   units: Unit[], 
   edges: RoadEdge[], 
-  nodes: RoadNode[]
+  nodes: RoadNode[],
+  playerStates: Map<string, PlayerResources>
 ): void {
   const now = Date.now();
   const edgesById = new Map(edges.map(e => [e.id, e]));
 
   for (const node of nodes) {
     if (!node.ownerId) continue;
+
+    const player = playerStates.get(node.ownerId);
+    if (!player) continue;
+
+    const manpowerCost = RECRUIT_BATCH_SIZE * MANPOWER_PER_SOLDIER;
+    if (player.manpower < manpowerCost) continue;
+    player.manpower -= manpowerCost;
 
     // 1. SEARCH FOR EXISTING GARRISON
     // Find any friendly unit that is "at" this node (on any connected road)

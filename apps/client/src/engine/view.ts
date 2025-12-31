@@ -1,9 +1,10 @@
 import { Graphics, Text, TextStyle } from 'pixi.js';
 import type { ServerGameTick } from '@xeno/shared';
 import { getFactionColor } from '@xeno/shared';
-import type { MapEngine, IMapEngineState } from './MapEngine';
+import type { MapEngine } from './MapEngine';
 
-type UnitSprite = Graphics & {
+// Exported so engine can type unitSprites
+export type UnitSprite = Graphics & {
   hpBarBg?: Graphics;
   hpBarFg?: Graphics;
   combatIcon?: Graphics;
@@ -18,7 +19,7 @@ function clamp01(value: number): number {
   return value;
 }
 
-function ensureUnitSprite(host: IMapEngineState & MapEngine, serverUnit: { id: string; ownerId: string | undefined }): UnitSprite {
+function ensureUnitSprite(host: MapEngine, serverUnit: { id: string; ownerId: string | undefined }): UnitSprite {
   const existing = host.unitSprites.get(serverUnit.id) as UnitSprite | undefined;
   if (existing) return existing;
 
@@ -61,18 +62,23 @@ function ensureUnitSprite(host: IMapEngineState & MapEngine, serverUnit: { id: s
   g.addChild(combatIcon);
   g.combatIcon = combatIcon;
 
-  // Unit Count Label
+  // HD Count Label (supersampled)
   const countStyle = new TextStyle({
     fontFamily: 'Arial',
-    fontSize: 12,
+    fontSize: 36,
     fill: '#ffffff',
-    fontWeight: 'bold',
+    fontWeight: '900',
     stroke: '#000000',
-    strokeThickness: 2,
+    strokeThickness: 6,
+    dropShadow: true,
+    dropShadowDistance: 2,
+    dropShadowBlur: 2,
   });
   const countLabel = new Text('', countStyle);
   countLabel.anchor.set(0.5);
-  countLabel.position.set(0, -22);
+  countLabel.position.set(0, -30);
+  countLabel.resolution = 2;
+  countLabel.scale.set(0.33);
   g.addChild(countLabel);
   g.countLabel = countLabel;
 
@@ -101,13 +107,12 @@ function updateUnitSprite(sprite: UnitSprite, serverUnit: { hp?: number; maxHp?:
 
   if (sprite.countLabel) {
     const count = serverUnit.count ?? 1;
-    // Always show the label, even for ×1
-    sprite.countLabel.text = `×${count}`;
+    sprite.countLabel.text = `${count}`;
     sprite.countLabel.visible = true;
   }
 }
 
-export function handleGameTick(host: IMapEngineState & MapEngine, data: ServerGameTick) {
+export function handleGameTick(host: MapEngine, data: ServerGameTick) {
   // Ensure sprites exist for all units
   for (const serverUnit of data.units) {
     const sprite = ensureUnitSprite(host, serverUnit);
@@ -124,7 +129,7 @@ export function handleGameTick(host: IMapEngineState & MapEngine, data: ServerGa
   }
 }
 
-export function flashUnit(host: IMapEngineState & MapEngine, unitId: string) {
+export function flashUnit(host: MapEngine, unitId: string) {
   const sprite = host.unitSprites.get(unitId);
   if (!sprite) return;
   const existing = host.flashTimers.get(unitId);

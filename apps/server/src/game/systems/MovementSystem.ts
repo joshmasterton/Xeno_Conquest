@@ -20,6 +20,7 @@ export function updateUnitPosition(
 
 	// 1. IDLE CHECK
 	if (!unit.pathQueue || unit.pathQueue.length === 0) {
+		if (unit.state === 'MOVING') unit.state = 'IDLE';
 		// Ensure we clamp to target if we are sitting on it
 		if (unit.targetEdgeId && unit.targetPercent != null && isSameRoad(unit.edgeId, unit.targetEdgeId)) {
 			// Normalize stop distance to CURRENT edge length
@@ -35,6 +36,8 @@ export function updateUnitPosition(
 		return unit; 
 	}
 
+	if (unit.state === 'IDLE') unit.state = 'MOVING';
+
 	unit.distanceOnEdge += unit.speed * deltaTime;
 
 	// 2. STOP CHECK (Before moving nodes)
@@ -46,7 +49,8 @@ export function updateUnitPosition(
 		// If we crossed the point (forward movement)
 		if (unit.distanceOnEdge >= stopDistance) {
 			unit.distanceOnEdge = stopDistance;
-			unit.pathQueue = []; // HARD STOP
+			unit.pathQueue = [];
+			unit.state = 'IDLE';
 			return unit; 
 		}
 	}
@@ -65,6 +69,7 @@ export function updateUnitPosition(
 
 		if (!unit.pathQueue || unit.pathQueue.length === 0) {
 			unit.distanceOnEdge = currentEdge.length;
+			unit.state = 'IDLE';
 			return unit;
 		}
 
@@ -85,6 +90,7 @@ export function updateUnitPosition(
 
 		if (!nextEdge) {
 			unit.distanceOnEdge = currentEdge.length;
+			unit.state = 'IDLE';
 			return unit;
 		}
 
@@ -101,6 +107,7 @@ export function updateUnitPosition(
 			if (unit.distanceOnEdge >= stopDistance) {
 				unit.distanceOnEdge = stopDistance;
 				unit.pathQueue = [];
+				unit.state = 'IDLE';
 				break;
 			}
 		}

@@ -8,6 +8,7 @@ export const GameHUD: React.FC = () => {
     const selectedNodeId = useGameStore((s) => s.selectedNodeId);
     const selectedUnitId = useGameStore((s) => s.selectedUnitId);
     const sendBuildOrder = useGameStore((s) => s.sendBuildOrder);
+    const sendUpgradeOrder = useGameStore((s) => s.sendUpgradeOrder);
     const moveSplitPercent = useGameStore((s) => s.moveSplitPercent);
     const setMoveSplitPercent = useGameStore((s) => s.setMoveSplitPercent);
     const myPlayerId = useGameStore((s) => s.myPlayerId);
@@ -19,18 +20,14 @@ export const GameHUD: React.FC = () => {
 
     const percentDisplay = Math.round(moveSplitPercent * 100);
 
-    // Get socket for upgrade orders
-    const socket = useGameStore((s) => s.socket);
-
-    const sendUpgradeOrder = (nodeId: string) => {
-        if (socket) {
-            socket.emit(EVENTS.C_UPGRADE_NODE, { nodeId });
-        }
-    };
-
     // Check Ownership
     const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
     const isOwned = selectedNode?.ownerId === myPlayerId;
+    const fortLevel = selectedNode?.fortificationLevel ?? 1;
+
+    // ✅ Get Yields (Default to 0 if missing)
+    const yieldGold = selectedNode?.resourceYield?.gold ?? 0;
+    const yieldMp = selectedNode?.resourceYield?.manpower ?? 0;
 
     return (
         <div
@@ -49,53 +46,74 @@ export const GameHUD: React.FC = () => {
                 boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
             }}
         >
-            {/* Resources */}
-            <div style={{ marginBottom: '12px', pointerEvents: 'auto' }}>
-                <div style={{ color: '#ffd700', fontWeight: 'bold' }}>Gold: {gold}</div>
-                <div style={{ color: '#00ccff', fontWeight: 'bold' }}>Manpower: {manpower}</div>
+            {/* Global Resources */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', paddingBottom: '8px', borderBottom: '1px solid #444', pointerEvents: 'auto' }}>
+                <span style={{ color: '#ffd700', fontWeight: 'bold' }}>💰 {gold}</span>
+                <span style={{ color: '#00ccff', fontWeight: 'bold' }}>🛡️ {manpower} / 1000</span>
             </div>
 
-            {/* PROVINCE SELECTED UI */}
-            {selectedNodeId && (
-                <div style={{ pointerEvents: 'auto', borderTop: '1px solid #444', paddingTop: '8px' }}>
+            {/* PROVINCE INFO */}
+            {selectedNode && (
+                <div style={{ pointerEvents: 'auto', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', marginBottom: '4px' }}>
+                        Province Info
+                    </div>
+                    
+                    {/* ✅ YIELD DISPLAY */}
+                    <div style={{ background: '#333', padding: '6px', borderRadius: '4px', marginBottom: '8px', fontSize: '12px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Income:</span>
+                        <span>
+                            <span style={{ color: '#ffd700' }}>+{yieldGold}G</span>
+                            <span style={{ color: '#666', margin: '0 4px' }}>|</span>
+                            <span style={{ color: '#00ccff' }}>+{yieldMp}MP</span>
+                            <span style={{ color: '#aaa', fontSize: '10px' }}> /sec</span>
+                        </span>
+                    </div>
+
                     {isOwned ? (
                         <>
-                            <div style={{ marginBottom: '8px', color: '#0f0', fontSize: '12px' }}>Owned Province</div>
+                            {/* Fortification Status */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '13px' }}>
+                                <span>🏰 Fort Lv {fortLevel}</span>
+                                <span style={{ fontSize: '11px', color: '#4f4' }}>(-{Math.min(fortLevel * 10, 50)}% Dmg)</span>
+                            </div>
+
                             <button
                                 style={{
                                     width: '100%',
                                     padding: '8px',
                                     background: '#2d6cdf',
-                                    color: '#fff',
+                                    color: 'white',
                                     border: 'none',
                                     borderRadius: '4px',
                                     cursor: 'pointer',
-                                    fontWeight: 'bold',
-                                    marginBottom: '8px'
+                                    marginBottom: '6px',
+                                    fontWeight: 'bold'
                                 }}
-                                onClick={() => sendBuildOrder(selectedNodeId)}
+                                onClick={() => sendBuildOrder(selectedNode.id)}
                             >
-                                Recruit Unit (50 Gold)
+                                Recruit (100G / 50MP)
                             </button>
+
                             <button
                                 style={{
                                     width: '100%',
                                     padding: '8px',
                                     background: '#d97706',
-                                    color: '#fff',
+                                    color: 'white',
                                     border: 'none',
                                     borderRadius: '4px',
                                     cursor: 'pointer',
-                                    fontWeight: 'bold',
+                                    fontWeight: 'bold'
                                 }}
-                                onClick={() => sendUpgradeOrder(selectedNodeId)}
+                                onClick={() => sendUpgradeOrder(selectedNode.id)}
                             >
-                                Upgrade Fort (100G)
+                                Upgrade Fort ({fortLevel * 100}G)
                             </button>
                         </>
                     ) : (
-                        <div style={{ fontSize: '12px', color: '#f00' }}>
-                            Enemy / Neutral Province
+                        <div style={{ color: '#ff5555', fontStyle: 'italic', fontSize: '12px', textAlign: 'center', padding: '4px', border: '1px dashed #ff5555', borderRadius: '4px' }}>
+                            Hostile Territory
                         </div>
                     )}
                 </div>

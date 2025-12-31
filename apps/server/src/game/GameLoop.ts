@@ -46,12 +46,30 @@ export class GameLoop {
 		this.nodesById = new Map(worldGraph.nodes.map((n) => [n.id, n]));
 		console.log(`Loaded ${this.edges.length} edges from world graph.`);
 
-		// Initialize players with zeroed resources
-		this.playerStates.set('player-1', { gold: 0, manpower: 0 });
+		// Initialize province yields if missing
+		for (const node of this.nodesById.values()) {
+			if (!node.resourceYield) {
+				node.resourceYield = {
+					gold: Math.floor(Math.random() * 5) + 1, // 1-5 gold per tick (never zero)
+					manpower: Math.floor(Math.random() * 3) + 1, // 1-3 manpower per tick (steady)
+				};
+			}
+		}
+		console.log('💰 Economy initialized: Provinces assigned resource yields.');
+
+		// Initialize players with starter boost
+		this.playerStates.set('player-1', { gold: 100, manpower: 200 });
 
 		// Supremacy spawn logic
 		const playerBaseId = BASE_NODE_IDS[0];
 		const aiBaseIds = BASE_NODE_IDS.slice(1);
+
+		// Force ownership of the starting base to the player
+		const playerBase = this.nodesById.get(playerBaseId);
+		if (playerBase) {
+			playerBase.ownerId = 'player-1';
+			console.log(`✅ Assigned Base ${playerBaseId} to player-1`);
+		}
 
 		console.log(`🗺️ Map Setup: Player at ${playerBaseId}, AI at ${aiBaseIds.join(', ')}`);
 
@@ -98,16 +116,18 @@ export class GameLoop {
 				}
 			});
 			socket.on(EVENTS.C_BUILD_UNIT, (payload) => {
-				const cost = 50;
-				const player = this.playerStates.get(playerId);
-				if (!player) return;
+					const GOLD_COST = 100;
+					const MANPOWER_COST = 50;
+					const player = this.playerStates.get(playerId);
+					if (!player) return;
 
-				const node = this.nodesById.get(payload.nodeId);
-				if (!node || node.ownerId !== playerId) return;
-				if (player.gold < cost) return;
+					const node = this.nodesById.get(payload.nodeId);
+					if (!node || node.ownerId !== playerId) return;
+					if (player.gold < GOLD_COST || player.manpower < MANPOWER_COST) return;
 
-				player.gold -= cost;
-				this.playerStates.set(playerId, player);
+					player.gold -= GOLD_COST;
+					player.manpower -= MANPOWER_COST;
+					this.playerStates.set(playerId, player);
 
 				const outgoing = this.edges.filter((e) => e.sourceNodeId === payload.nodeId);
 				const fallbackIncoming = this.edges.filter((e) => e.targetNodeId === payload.nodeId);
@@ -151,7 +171,8 @@ export class GameLoop {
 			processRecruitment(
 				this.units,
 				this.edges,
-				Array.from(this.nodesById.values())
+				Array.from(this.nodesById.values()),
+				this.playerStates
 			);
 		}, RECRUITMENT_TICK_MS);
 

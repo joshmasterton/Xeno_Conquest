@@ -20,6 +20,8 @@ export interface GameState {
 	setMoveSplitPercent: (p: number) => void;
 	setInteractionMode: (mode: InteractionMode) => void;
 	sendBuildOrder: (nodeId: string) => void;
+	setNodes: (nodes: RoadNode[]) => void;
+	sendUpgradeOrder: (nodeId: string) => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -38,4 +40,6 @@ export const useGameStore = create<GameState>((set) => ({
 	setMoveSplitPercent: (p: number) => set({ moveSplitPercent: p }),
 	setInteractionMode: (mode: InteractionMode) => set({ interactionMode: mode }),
 	sendBuildOrder: () => undefined,
+	setNodes: (nodes: RoadNode[]) => set({ nodes }),
+	sendUpgradeOrder: () => undefined,
 }));

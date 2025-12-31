@@ -56,7 +56,7 @@ export function processPlayerOrder(
       count: soldiersLeaving,
       hp: hpLeaving,
       maxHp: hpLeaving,
-      state: 'IDLE',
+      state: 'MOVING',
       pathQueue: [],
       edgeId: unit.edgeId,
       distanceOnEdge: unit.distanceOnEdge,

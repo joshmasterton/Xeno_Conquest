@@ -6,21 +6,20 @@ import {
   WORLD_SIZE,
   EVENTS,
   provinces,
-  ensureProvinceNodeId,
   type Territory,
   type RoadEdge,
   type RoadNode,
   type ServerToClientEvents,
   type ClientToServerEvents,
-  type ServerGameTick,
   type MovementSegment,
 } from '@xeno/shared';
 import type { EventSystem } from '@pixi/events';
 import { ProvincesLayer } from './ProvincesLayer';
 import { setupInteraction } from './interaction';
 import { handleTick } from './tick';
-import { handleGameTick, flashUnit } from './view';
+import { handleGameTick, flashUnit, type UnitSprite } from './view';
 import { useGameStore } from '../store/gameStore';
+import { createLabelSystem, destroyLabelSystem, syncYieldLabels, updateLabelTargets, animateLabels, type LabelSystem } from './labelSystem';
 
 type RendererWithEvents = Renderer & { events: EventSystem };
 
@@ -30,51 +29,30 @@ export interface EngineMetrics {
   unitCount: number;
   selectedUnit: string | null;
 }
-
-// ✅ NEW: Define Interaction Modes
 export type InteractionMode = 'SELECT' | 'TARGETING';
 
-// ✅ Public interface for helper modules (no 'any' casts)
-export interface IMapEngineState {
-  readonly viewport: Viewport;
-  readonly activeSegments: Map<string, MovementSegment>;
-  readonly unitSprites: Map<string, Graphics>;
-  readonly flashTimers: Map<string, number>;
-  readonly flashHalos: Map<string, Graphics>;
-  readonly railsLayer: Graphics;
-  readonly provincesLayer: ProvincesLayer | null;
-  readonly selectedUnitId: string | null;
-  incrementFrames(): void;
-  getFrames(): number;
-  getLastSample(): number;
-  setLastSample(time: number): void;
-  notifyMetrics(data: EngineMetrics): void;
-  selectUnit(unitId: string | null): void;
-}
-
-export class MapEngine implements IMapEngineState {
+export class MapEngine {
   private app: Application;
-  public readonly viewport: Viewport; // ✅ Public for interface
+  public readonly viewport: Viewport;
   private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
-  public readonly unitSprites: Map<string, Graphics> = new Map(); // ✅ Public for interface
-  public readonly activeSegments: Map<string, MovementSegment> = new Map(); // ✅ Public for interface
-  public readonly flashTimers: Map<string, number> = new Map(); // ✅ Public for interface
-  public readonly flashHalos: Map<string, Graphics> = new Map(); // ✅ Public for interface
-  public readonly railsLayer: Graphics; // ✅ Public for interface
-  public provincesLayer: ProvincesLayer | null = null; // ✅ Public for interface
-  
-  // Callbacks
+  public readonly unitSprites: Map<string, UnitSprite> = new Map();
+  public readonly activeSegments: Map<string, MovementSegment> = new Map();
+  public readonly flashTimers: Map<string, number> = new Map();
+  public readonly flashHalos: Map<string, Graphics> = new Map();
+  public readonly railsLayer: Graphics;
+  public provincesLayer: ProvincesLayer | null = null;
+  private labelSystem: LabelSystem;
   private metricsCb?: (m: EngineMetrics) => void;
   private onSelectionChange?: (unitId: string | null) => void;
 
   private frames = 0;
   private lastSample = performance.now();
   private edges: RoadEdge[] = worldGraph.edges;
-  private nodesById: Map<string, RoadNode> = new Map(worldGraph.nodes.map(n => [n.id, n]));
-  
-  // ✅ STATE
+  private nodesById: Map<string, RoadNode> = new Map(worldGraph.nodes.map((n) => [n.id, n]));
+  private latestNodes: RoadNode[] = worldGraph.nodes;
+
   private interactionMode: InteractionMode = 'SELECT';
-  public selectedUnitId: string | null = null; // ✅ Public for interface
+  public selectedUnitId: string | null = null;
   private selectedProvinceId: string | null = null;
   private nodeGraphics: Map<string, Graphics> = new Map();
   private selectionRing: Graphics | null = null;
@@ -88,7 +66,6 @@ export class MapEngine implements IMapEngineState {
   ) {
     this.metricsCb = opts?.onMetrics;
     this.onSelectionChange = opts?.onSelectionChange;
-
     this.app = new Application({
       resizeTo: window,
       backgroundColor: 0x000000,
@@ -104,13 +81,11 @@ export class MapEngine implements IMapEngineState {
       screenHeight: window.innerHeight,
       worldWidth: WORLD_SIZE,
       worldHeight: WORLD_SIZE,
-      // Cast to avoid type mismatch across pixi-viewport versions
       events: (renderer as any).events,
     } as any);
     this.app.stage.addChild(this.viewport);
 
     this.viewport.drag().pinch().wheel().decelerate();
-
     const background = Sprite.from('/color_mask.png');
     background.position.set(0, 0);
     background.width = WORLD_SIZE;
@@ -130,13 +105,8 @@ export class MapEngine implements IMapEngineState {
     this.railsLayer = rails;
 
     this.provincesLayer = new ProvincesLayer(this.viewport);
-    // Populate provinces so borders render
     this.provincesLayer.setProvinces(provinces as Territory[]);
-
-    // Interaction handler attached after socket setup
-
-    // Node Dots
-    const nodesLayer = new Graphics();
+    this.labelSystem = createLabelSystem();
     for (const node of worldGraph.nodes) {
       const dot = new Graphics();
       dot.beginFill(0x4488ff);
@@ -145,12 +115,13 @@ export class MapEngine implements IMapEngineState {
       this.viewport.addChild(dot);
       this.nodeGraphics.set(node.id, dot);
     }
+    this.viewport.addChild(this.labelSystem.container);
 
-    // Socket
     this.socket = io('http://localhost:3000') as Socket<ServerToClientEvents, ClientToServerEvents>;
-        useGameStore.setState({
-          sendBuildOrder: (nodeId: string) => this.socket.emit(EVENTS.C_BUILD_UNIT, { nodeId, unitType: 'infantry' }),
-        });
+    useGameStore.setState({
+      sendBuildOrder: (nodeId: string) => this.socket.emit(EVENTS.C_BUILD_UNIT, { nodeId, unitType: 'infantry' }),
+      sendUpgradeOrder: (nodeId: string) => this.socket.emit(EVENTS.C_UPGRADE_NODE, { nodeId }),
+    });
     this.socket.on('connect', () => console.log('✅ Connected'));
     this.socket.on(EVENTS.S_GAME_TICK, (payload) => {
       const store = useGameStore.getState();
@@ -158,7 +129,11 @@ export class MapEngine implements IMapEngineState {
       if (playerData) {
         store.setResources(playerData.gold, playerData.manpower);
       }
+
+      useGameStore.setState({ nodes: payload.nodes });
       this.provincesLayer?.updateNodes(payload.nodes);
+      this.latestNodes = payload.nodes;
+      syncYieldLabels(this.labelSystem, payload.nodes);
       handleGameTick(this, payload);
     });
     this.socket.on(EVENTS.COMBAT_EVENT, (payload: { pairs: { aId: string; bId: string }[] }) => {
@@ -176,9 +151,20 @@ export class MapEngine implements IMapEngineState {
       }
     });
 
-    this.app.ticker.add(() => handleTick(this));
+    this.app.ticker.add(() => {
+      handleTick(this);
+      this.updateTextScaling();
+      animateLabels(this.labelSystem);
 
-    // Attach interaction handler (requires socket)
+      if (this.frames % 10 === 0 && this.metricsCb) {
+        this.metricsCb({
+          fps: Math.round(this.app.ticker.FPS),
+          zoom: Math.round(this.viewport.scale.x * 100) / 100,
+          unitCount: this.unitSprites.size,
+          selectedUnit: this.selectedUnitId,
+        });
+      }
+    });
     setupInteraction({
       viewport: this.viewport,
       provincesLayer: this.provincesLayer,
@@ -192,15 +178,12 @@ export class MapEngine implements IMapEngineState {
       mapEngine: this,
     });
   }
-
-  // ✅ IMapEngineState Implementation (public API for helpers)
   incrementFrames(): void { this.frames++; }
   getFrames(): number { return this.frames; }
   getLastSample(): number { return this.lastSample; }
   setLastSample(time: number): void { this.lastSample = time; }
-  notifyMetrics(data: EngineMetrics): void { this.metricsCb?.(data); }
+  notifyMetrics(_data: EngineMetrics): void {}
 
-  // ✅ HELPER: State Management (now public for interface)
   public selectUnit(unitId: string | null) {
     this.clearSelectionRing();
     this.selectedUnitId = unitId;
@@ -208,68 +191,64 @@ export class MapEngine implements IMapEngineState {
     this.provincesLayer?.highlight(null);
     useGameStore.setState({ selectedUnitId: unitId });
     
-    // Draw selection ring if selecting a unit
     if (unitId) {
       const sprite = this.unitSprites.get(unitId);
       if (sprite) {
         const ring = new Graphics();
-    // Helpers moved to external modules
+        ring.lineStyle(2, 0x00ff00, 0.8);
+        ring.drawCircle(0, 0, 12);
+        sprite.addChild(ring);
         this.selectionRing = ring;
       }
     }
-    
-    // Notify React
     if (this.onSelectionChange) this.onSelectionChange(unitId);
   }
 
-  // ✅ PUBLIC API: Called by React Button
-  public enterTargetingMode() {
-    if (!this.selectedUnitId) return;
-    this.setInteractionMode('TARGETING');
-  }
+  public enterTargetingMode() { if (!this.selectedUnitId) return; this.setInteractionMode('TARGETING'); }
 
   private setInteractionMode(mode: InteractionMode) {
     this.interactionMode = mode;
-    console.log(`🔄 Interaction Mode: ${mode}`);
-    
-    // Update Cursor
     const canvas = this.app.view as HTMLCanvasElement;
-    if (mode === 'TARGETING') {
-      canvas.style.cursor = 'crosshair';
-    } else {
-      canvas.style.cursor = 'default';
-    }
-    
-    // Sync to store
+    canvas.style.cursor = mode === 'TARGETING' ? 'crosshair' : 'default';
     useGameStore.setState({ interactionMode: mode });
   }
 
-  // ✅ PUBLIC API: Called when interaction system changes mode
   public updateCursorForMode(mode: InteractionMode) {
     this.interactionMode = mode;
-    const canvas = this.app.view as HTMLCanvasElement;
-    if (mode === 'TARGETING') {
-      canvas.style.cursor = 'crosshair';
-    } else {
-      canvas.style.cursor = 'default';
-    }
+    (this.app.view as HTMLCanvasElement).style.cursor = mode === 'TARGETING' ? 'crosshair' : 'default';
   }
 
-  public setSelectedProvinceId(id: string | null) {
-    this.selectedProvinceId = id;
-    useGameStore.setState({ selectedNodeId: id });
-  }
+  public setSelectedProvinceId(id: string | null) { this.selectedProvinceId = id; useGameStore.setState({ selectedNodeId: id }); }
 
   private clearSelectionRing() {
-    if (this.selectionRing && this.selectionRing.parent) {
+    if (this.selectionRing?.parent) {
       this.selectionRing.parent.removeChild(this.selectionRing);
       this.selectionRing.destroy();
       this.selectionRing = null;
     }
   }
 
+  private updateTextScaling() {
+    const zoom = Math.max(this.viewport.scale.x, 0.2);
+    const labelScale = 0.33 / zoom;
+    const unitOffset = 25 + 12 / zoom; // world clearance + screen padding
+    updateLabelTargets(this.labelSystem, this.latestNodes, this.unitSprites, zoom, unitOffset);
+    for (const label of this.labelSystem.labels.values()) label.scale.set(labelScale);
+
+    const unitScale = 0.33 / zoom;
+    for (const sprite of this.unitSprites.values()) {
+      if (sprite.countLabel) {
+        sprite.countLabel.scale.set(unitScale);
+        sprite.countLabel.position.set(0, -unitOffset);
+      }
+    }
+  }
+
   public destroy() {
     this.socket.disconnect();
+    const view = this.app.view as HTMLCanvasElement;
+    if (view?.parentNode) view.parentNode.removeChild(view);
+    destroyLabelSystem(this.labelSystem);
     this.app.destroy(true, { children: true });
   }
 }
