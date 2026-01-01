@@ -195,4 +195,34 @@ export class EffectSystem {
       }
     }
   }
+
+  spawnCorpse(x: number, y: number, rotation: number, color: number): void {
+    const container = new Container();
+    container.position.set(x, y);
+    container.rotation = rotation;
+
+    // Darkened body (rounded rect)
+    const body = new Graphics();
+    const bodyColor = ((color >> 16) & 0xff) * 0.5 | ((color >> 8) & 0xff) * 0.5 << 8 | (color & 0xff) * 0.5;
+    body.beginFill(bodyColor);
+    body.drawRoundedRect(-3, -5, 6, 10, 2);
+    body.endFill();
+    container.addChild(body);
+
+    // Head (circle, faction color)
+    const head = new Graphics();
+    head.beginFill(color);
+    head.drawCircle(0, -8, 2);
+    head.endFill();
+    container.addChild(head);
+
+    // Blood pool (ellipse)
+    const blood = new Graphics();
+    blood.beginFill(0x660000, 0.4);
+    blood.drawEllipse(0, 7, 5, 2);
+    blood.endFill();
+    container.addChild(blood);
+
+    this.decalContainer.addChild(container);
+  }
 }
