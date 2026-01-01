@@ -6,7 +6,8 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n \"client,server\" -c \"cyan,yellow\" \"npm run dev --workspace @xeno/client\" \"npm run dev --workspace @xeno/server\"",
+    "wipe-save": "node -e \"const fs = require('fs'); const path = require('path'); const file = path.resolve('apps/server', 'savegame.json'); if (fs.existsSync(file)) { fs.unlinkSync(file); console.log('✅ Savegame wiped.'); } else { console.log('ℹ️ No savegame found.'); }\"",
+    "dev": "npm run wipe-save && concurrently -n \"client,server\" -c \"cyan,yellow\" \"npm run dev --workspace @xeno/client\" \"npm run dev --workspace @xeno/server\"",
     "dev:client": "npm run dev --workspace @xeno/client",
     "dev:server": "npm run dev --workspace @xeno/server",
     "build": "npm run build --workspaces --if-present",

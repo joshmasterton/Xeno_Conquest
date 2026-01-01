@@ -4,8 +4,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn src/main.ts",
     "build": "tsc",
-    "process-map": "ts-node src/scripts/processMapImages.ts",
-    "wipe-save": "node -e \"const fs = require('fs'); const path = require('path'); const file = path.resolve(process.cwd(), 'savegame.json'); if (fs.existsSync(file)) { fs.unlinkSync(file); console.log('✅ Savegame wiped.'); } else { console.log('ℹ️ No savegame found.'); }\""
+    "process-map": "ts-node src/scripts/processMapImages.ts"
   },
   "dependencies": {
     "@xeno/shared": "*",

@@ -1,129 +1,239 @@
 {
-  "timestamp": 1767170529434,
+  "timestamp": 1767230412066,
   "units": [
     {
-      "id": "unit-ai_faction_1-1",
+      "id": "player-1-army",
       "edgeId": "#a0467c-#ccd417",
-      "distanceOnEdge": 984.7578382526335,
+      "distanceOnEdge": 886.2820544273702,
       "speed": 60,
+      "ownerId": "player-1",
       "pathQueue": [],
-      "hp": 56180.49850000002,
-      "maxHp": 57300,
       "state": "IDLE",
-      "ownerId": "ai_faction_1",
-      "count": 563
+      "count": 20,
+      "hp": 2000,
+      "maxHp": 2000,
+      "targetEdgeId": "#a0467c-#ccd417",
+      "targetPercent": 0.9
     },
     {
-      "id": "unit-ai_faction_2-1",
-      "edgeId": "#716388-#4d7e02",
-      "distanceOnEdge": 171.96,
+      "id": "unit-ai_faction_3-1",
+      "edgeId": "#a28f55-#4d7e02",
+      "distanceOnEdge": 116.45997618182642,
       "speed": 60,
       "pathQueue": [
         "#4d7e02"
       ],
-      "hp": 414.31200000000416,
+      "hp": 456.0894999999918,
       "maxHp": 2000,
       "state": "COMBAT",
-      "ownerId": "ai_faction_2",
+      "ownerId": "ai_faction_3",
       "count": 5
     },
     {
       "id": "unit-ai_faction_4-1",
       "edgeId": "#a28f55-#4d7e02",
-      "distanceOnEdge": 152.82000000000002,
+      "distanceOnEdge": 165.46903033498444,
       "speed": 60,
+      "pathQueue": [],
+      "hp": 1060.354800000001,
+      "maxHp": 8400,
+      "state": "COMBAT",
+      "ownerId": "ai_faction_4",
+      "count": 11
+    },
+    {
+      "id": "garrison-ai_faction_3-#2721d2-1767230232035",
+      "ownerId": "ai_faction_3",
+      "edgeId": "#e15c01-#a0467c",
+      "distanceOnEdge": 602.8764384183545,
+      "state": "IDLE",
+      "pathQueue": [],
+      "speed": 60,
+      "count": 69,
+      "hp": 6900,
+      "maxHp": 6900
+    },
+    {
+      "id": "garrison-ai_faction_3-#a28f55-1767230232035",
+      "ownerId": "ai_faction_3",
+      "edgeId": "#de8059-#03c305",
+      "distanceOnEdge": 706.8182227418871,
+      "state": "IDLE",
+      "pathQueue": [],
+      "speed": 60,
+      "count": 29,
+      "hp": 2900,
+      "maxHp": 2900
+    },
+    {
+      "id": "garrison-player-1-#ccd417-1767230232035",
+      "ownerId": "player-1",
+      "edgeId": "#ccd417-#735a02",
+      "distanceOnEdge": 0,
+      "state": "IDLE",
+      "pathQueue": [],
+      "speed": 60,
+      "count": 4,
+      "hp": 400,
+      "maxHp": 400
+    },
+    {
+      "id": "unit-ai_faction_3-1767230276874",
+      "ownerId": "ai_faction_3",
+      "edgeId": "#418802-#d0b700",
+      "distanceOnEdge": 312.5699921617557,
+      "speed": 60,
+      "pathQueue": [],
+      "state": "IDLE",
+      "count": 17,
+      "hp": 1700,
+      "maxHp": 1700
+    },
+    {
+      "id": "garrison-ai_faction_1-#716388-1767230292041",
+      "ownerId": "ai_faction_1",
+      "edgeId": "#716388-#4d7e02",
+      "distanceOnEdge": 151.31999999999996,
+      "state": "COMBAT",
       "pathQueue": [
         "#4d7e02"
       ],
-      "hp": 414.31200000000416,
-      "maxHp": 2000,
-      "state": "COMBAT",
-      "ownerId": "ai_faction_4",
-      "count": 5
-    },
-    {
-      "id": "ai-built-ai_faction_1-1767170369545",
-      "edgeId": "#2721d2-#a28f55",
-      "distanceOnEdge": 0,
       "speed": 60,
-      "ownerId": "ai_faction_1",
-      "pathQueue": [],
-      "state": "IDLE",
-      "count": 83,
-      "hp": 8300,
-      "maxHp": 8300
+      "count": 154,
+      "hp": 15345.161000000047,
+      "maxHp": 16600
     },
     {
-      "id": "ai-built-ai_faction_1-1767170394570",
-      "edgeId": "#eda400-#716388",
-      "distanceOnEdge": 0,
+      "id": "garrison-ai_faction_3-#2721d2-1767230292041",
+      "ownerId": "ai_faction_3",
+      "edgeId": "#418802-#dc3a01",
+      "distanceOnEdge": 414.45023826751503,
+      "state": "IDLE",
+      "pathQueue": [],
       "speed": 60,
-      "ownerId": "ai_faction_1",
-      "pathQueue": [],
-      "state": "IDLE",
-      "count": 43,
-      "hp": 4300,
-      "maxHp": 4300
+      "count": 22,
+      "hp": 2200,
+      "maxHp": 2200
     },
     {
-      "id": "ai-built-ai_faction_1-1767170399582",
+      "id": "ai-built-ai_faction_3-1767230322178",
       "edgeId": "#a28f55-#2721d2",
       "distanceOnEdge": 0,
       "speed": 60,
-      "ownerId": "ai_faction_1",
+      "ownerId": "ai_faction_3",
       "pathQueue": [],
       "state": "IDLE",
-      "count": 43,
-      "hp": 4300,
-      "maxHp": 4300
+      "count": 22,
+      "hp": 2200,
+      "maxHp": 2200
     },
     {
-      "id": "ai-built-ai_faction_1-1767170404583",
-      "edgeId": "#716388-#eda400",
+      "id": "ai-built-ai_faction_3-1767230347204",
+      "edgeId": "#e15c01-#a28f55",
       "distanceOnEdge": 0,
       "speed": 60,
-      "ownerId": "ai_faction_1",
+      "ownerId": "ai_faction_3",
       "pathQueue": [],
       "state": "IDLE",
-      "count": 83,
-      "hp": 8300,
-      "maxHp": 8300
+      "count": 22,
+      "hp": 2200,
+      "maxHp": 2200
     },
     {
-      "id": "garrison-ai_faction_1-#418802-1767170409405",
-      "ownerId": "ai_faction_1",
+      "id": "garrison-ai_faction_3-#2721d2-1767230352048",
+      "ownerId": "ai_faction_3",
+      "edgeId": "#2721d2-#a28f55",
+      "distanceOnEdge": 0,
+      "state": "IDLE",
+      "pathQueue": [],
+      "speed": 60,
+      "count": 22,
+      "hp": 2200,
+      "maxHp": 2200
+    },
+    {
+      "id": "garrison-ai_faction_3-#418802-1767230352048",
+      "ownerId": "ai_faction_3",
       "edgeId": "#418802-#a28f55",
       "distanceOnEdge": 0,
       "state": "IDLE",
       "pathQueue": [],
       "speed": 60,
-      "count": 23,
-      "hp": 2300,
-      "maxHp": 2300
+      "count": 2,
+      "hp": 200,
+      "maxHp": 200
     },
     {
-      "id": "garrison-ai_faction_1-#c3ac34-1767170409405",
-      "ownerId": "ai_faction_1",
+      "id": "garrison-ai_faction_3-#c3ac34-1767230352048",
+      "ownerId": "ai_faction_3",
       "edgeId": "#c3ac34-#4d7e02",
       "distanceOnEdge": 0,
       "state": "IDLE",
       "pathQueue": [],
       "speed": 60,
-      "count": 103,
-      "hp": 10300,
-      "maxHp": 10300
+      "count": 42,
+      "hp": 4200,
+      "maxHp": 4200
     },
     {
-      "id": "garrison-ai_faction_1-#a0467c-1767170409405",
-      "ownerId": "ai_faction_1",
-      "edgeId": "#a0467c-#e15c01",
+      "id": "garrison-ai_faction_3-#735a02-1767230352048",
+      "ownerId": "ai_faction_3",
+      "edgeId": "#735a02-#c3ac34",
       "distanceOnEdge": 0,
       "state": "IDLE",
       "pathQueue": [],
       "speed": 60,
-      "count": 103,
-      "hp": 10300,
-      "maxHp": 10300
+      "count": 2,
+      "hp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "garrison-ai_faction_3-#de8059-1767230352048",
+      "ownerId": "ai_faction_3",
+      "edgeId": "#de8059-#d0b700",
+      "distanceOnEdge": 0,
+      "state": "IDLE",
+      "pathQueue": [],
+      "speed": 60,
+      "count": 42,
+      "hp": 4200,
+      "maxHp": 4200
+    },
+    {
+      "id": "garrison-ai_faction_3-#e43800-1767230352048",
+      "ownerId": "ai_faction_3",
+      "edgeId": "#e43800-#de8059",
+      "distanceOnEdge": 0,
+      "state": "IDLE",
+      "pathQueue": [],
+      "speed": 60,
+      "count": 2,
+      "hp": 200,
+      "maxHp": 200
+    },
+    {
+      "id": "garrison-ai_faction_1-#eda400-1767230412059",
+      "ownerId": "ai_faction_1",
+      "edgeId": "#eda400-#716388",
+      "distanceOnEdge": 0,
+      "state": "IDLE",
+      "pathQueue": [],
+      "speed": 60,
+      "count": 1,
+      "hp": 100,
+      "maxHp": 100
+    },
+    {
+      "id": "garrison-ai_faction_1-#716388-1767230412059",
+      "ownerId": "ai_faction_1",
+      "edgeId": "#716388-#eda400",
+      "distanceOnEdge": 0,
+      "state": "IDLE",
+      "pathQueue": [],
+      "speed": 60,
+      "count": 1,
+      "hp": 100,
+      "maxHp": 100
     }
   ],
   "nodes": [
@@ -132,7 +242,7 @@
       "x": 644,
       "y": 882,
       "resourceYield": {
-        "gold": 2,
+        "gold": 4,
         "manpower": 1
       },
       "ownerId": "ai_faction_1"
@@ -142,8 +252,8 @@
       "x": 924,
       "y": 1017,
       "resourceYield": {
-        "gold": 5,
-        "manpower": 3
+        "gold": 2,
+        "manpower": 1
       },
       "ownerId": "ai_faction_1"
     },
@@ -152,56 +262,59 @@
       "x": 1376,
       "y": 763,
       "resourceYield": {
-        "gold": 1,
+        "gold": 2,
         "manpower": 2
       },
-      "ownerId": "ai_faction_1"
+      "ownerId": "ai_faction_3",
+      "fortificationLevel": 4
     },
     {
       "id": "#a28f55",
       "x": 1180,
       "y": 1218,
       "resourceYield": {
-        "gold": 5,
+        "gold": 3,
         "manpower": 2
       },
-      "ownerId": "ai_faction_1"
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#dc3a01",
       "x": 2433,
       "y": 1020,
       "resourceYield": {
-        "gold": 5,
-        "manpower": 1
-      }
+        "gold": 2,
+        "manpower": 2
+      },
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#418802",
       "x": 2196,
       "y": 1360,
       "resourceYield": {
-        "gold": 2,
+        "gold": 3,
         "manpower": 2
       },
-      "ownerId": "ai_faction_1"
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#e15c01",
       "x": 1746,
       "y": 1542,
       "resourceYield": {
-        "gold": 3,
+        "gold": 2,
         "manpower": 3
-      }
+      },
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#f803bc",
       "x": 3064,
       "y": 1140,
       "resourceYield": {
-        "gold": 4,
-        "manpower": 1
+        "gold": 3,
+        "manpower": 3
       }
     },
     {
@@ -209,56 +322,61 @@
       "x": 1016,
       "y": 1196,
       "resourceYield": {
-        "gold": 3,
+        "gold": 2,
         "manpower": 1
-      }
+      },
+      "ownerId": "ai_faction_4",
+      "fortificationLevel": 2
     },
     {
       "id": "#c3ac34",
       "x": 977,
       "y": 1420,
       "resourceYield": {
-        "gold": 4,
-        "manpower": 2
+        "gold": 1,
+        "manpower": 1
       },
-      "ownerId": "ai_faction_1"
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#d0b700",
       "x": 2414,
       "y": 1584,
       "resourceYield": {
-        "gold": 2,
+        "gold": 3,
         "manpower": 3
-      }
+      },
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#a0467c",
       "x": 1568,
       "y": 2118,
       "resourceYield": {
-        "gold": 4,
+        "gold": 2,
         "manpower": 3
       },
-      "ownerId": "ai_faction_1"
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#735a02",
       "x": 989,
       "y": 2068,
       "resourceYield": {
-        "gold": 5,
-        "manpower": 2
-      }
+        "gold": 1,
+        "manpower": 1
+      },
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#de8059",
       "x": 2474,
       "y": 2673,
       "resourceYield": {
-        "gold": 3,
-        "manpower": 1
-      }
+        "gold": 1,
+        "manpower": 3
+      },
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#03c305",
@@ -266,63 +384,65 @@
       "y": 2539,
       "resourceYield": {
         "gold": 3,
-        "manpower": 3
-      }
+        "manpower": 2
+      },
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#e43800",
       "x": 2186,
       "y": 2839,
       "resourceYield": {
-        "gold": 3,
+        "gold": 2,
         "manpower": 3
-      }
+      },
+      "ownerId": "ai_faction_3"
     },
     {
       "id": "#ccd417",
       "x": 830,
       "y": 2770,
       "resourceYield": {
-        "gold": 2,
-        "manpower": 1
+        "gold": 3,
+        "manpower": 2
       },
-      "ownerId": "ai_faction_1"
+      "ownerId": "player-1"
     }
   ],
   "players": [
     [
       "player-1",
       {
-        "gold": 332,
-        "manpower": 296
+        "gold": 814,
+        "manpower": 636
       }
     ],
     [
       "ai_faction_1",
       {
-        "gold": 1024,
-        "manpower": 920
+        "gold": 672,
+        "manpower": 18
       }
     ],
     [
       "ai_faction_2",
       {
-        "gold": 45,
-        "manpower": 27
+        "gold": 56,
+        "manpower": 28
       }
     ],
     [
       "ai_faction_3",
       {
-        "gold": 70,
-        "manpower": 130
+        "gold": 264,
+        "manpower": 880
       }
     ],
     [
       "ai_faction_4",
       {
-        "gold": 95,
-        "manpower": 38
+        "gold": 97,
+        "manpower": 63
       }
     ]
   ]

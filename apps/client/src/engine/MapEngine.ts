@@ -18,6 +18,7 @@ import { ProvincesLayer } from './ProvincesLayer';
 import { setupInteraction } from './interaction';
 import { handleTick } from './tick';
 import { handleGameTick, flashUnit, type UnitSprite } from './view';
+import { EffectSystem } from './effects';
 import { useGameStore } from '../store/gameStore';
 import { createLabelSystem, destroyLabelSystem, syncYieldLabels, syncUnitLabels, updateLabelTargets, animateLabels, type LabelSystem } from './labelSystem';
 
@@ -41,6 +42,7 @@ export class MapEngine {
   public readonly flashHalos: Map<string, Graphics> = new Map();
   public readonly railsLayer: Graphics;
   public provincesLayer: ProvincesLayer | null = null;
+  public effectSystem: EffectSystem;
   private labelSystem: LabelSystem;
   private metricsCb?: (m: EngineMetrics) => void;
   private onSelectionChange?: (unitId: string | null) => void;
@@ -117,6 +119,9 @@ export class MapEngine {
     }
     this.viewport.addChild(this.labelSystem.container);
 
+    this.effectSystem = new EffectSystem();
+    this.viewport.addChild(this.effectSystem.container);
+
     this.socket = io('http://localhost:3000') as Socket<ServerToClientEvents, ClientToServerEvents>;
     useGameStore.setState({
       sendBuildOrder: (nodeId: string) => this.socket.emit(EVENTS.C_BUILD_UNIT, { nodeId, unitType: 'infantry' }),
@@ -138,8 +143,21 @@ export class MapEngine {
     });
     this.socket.on(EVENTS.COMBAT_EVENT, (payload: { pairs: { aId: string; bId: string }[] }) => {
       for (const pair of payload.pairs) {
-        flashUnit(this, pair.aId);
-        flashUnit(this, pair.bId);
+        const unitA = this.unitSprites.get(pair.aId);
+        const unitB = this.unitSprites.get(pair.bId);
+
+        if (unitA && unitB) {
+          // Fire a volley! (3-5 bullets randomly)
+          const volleyCount = 3 + Math.floor(Math.random() * 3);
+
+          for (let i = 0; i < volleyCount; i++) {
+            // Delay shots slightly for "rat-a-tat" effect
+            setTimeout(() => {
+              this.effectSystem.spawnBullet(unitA.x, unitA.y, unitB.x, unitB.y);
+              this.effectSystem.spawnBullet(unitB.x, unitB.y, unitA.x, unitA.y);
+            }, i * 50);
+          }
+        }
       }
     });
     this.socket.on(EVENTS.S_UNIT_DEATH, (payload: { unitId: string }) => {
@@ -155,6 +173,7 @@ export class MapEngine {
       handleTick(this);
       this.updateTextScaling();
       animateLabels(this.labelSystem);
+      this.effectSystem.update();
 
       if (this.frames % 10 === 0 && this.metricsCb) {
         this.metricsCb({
