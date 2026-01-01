@@ -1,4 +1,4 @@
-import { RoadEdge, Unit, worldGraph, TICK_RATE, EVENTS, BASE_NODE_IDS, type RoadNode, type MovementSegment, type MoveOrder, type PlayerResources, type UpgradeNodePayload } from '@xeno/shared';
+import { RoadEdge, Unit, worldGraph, TICK_RATE, EVENTS, BASE_NODE_IDS, UNIT_BASE_SPEED, type RoadNode, type MovementSegment, type MoveOrder, type PlayerResources, type UpgradeNodePayload } from '@xeno/shared';
 import { updateUnitPosition } from './systems/MovementSystem';
 import type { Server } from 'socket.io';
 import type { ClientToServerEvents, ServerToClientEvents } from '@xeno/shared';
@@ -115,7 +115,7 @@ export class GameLoop {
 					id: 'player-1-army',
 					edgeId: pStartEdge.id,
 					distanceOnEdge: 0,
-					speed: 60,
+					speed: UNIT_BASE_SPEED,
 					ownerId: 'player-1',
 					pathQueue: [],
 					state: 'IDLE',
@@ -185,7 +185,7 @@ export class GameLoop {
 					id: unitId,
 					edgeId: startEdge.id,
 					distanceOnEdge: 0,
-					speed: 60,
+					speed: UNIT_BASE_SPEED,
 					ownerId: playerId,
 					pathQueue: [],
 					hp: BUILD_AMOUNT * HP_PER_SOLDIER,

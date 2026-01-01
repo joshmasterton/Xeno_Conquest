@@ -1,4 +1,4 @@
-import { Application, Graphics, Sprite, Renderer } from 'pixi.js';
+import { Application, Graphics, Sprite, Renderer, Point } from 'pixi.js';
 import { Viewport } from 'pixi-viewport';
 import { io, Socket } from 'socket.io-client';
 import {
@@ -120,6 +120,7 @@ export class MapEngine {
     this.viewport.addChild(this.labelSystem.container);
 
     this.effectSystem = new EffectSystem();
+    this.viewport.addChild(this.effectSystem.decalContainer);
     this.viewport.addChild(this.effectSystem.container);
 
     this.socket = io('http://localhost:3000') as Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -142,20 +143,55 @@ export class MapEngine {
       handleGameTick(this, payload);
     });
     this.socket.on(EVENTS.COMBAT_EVENT, (payload: { pairs: { aId: string; bId: string }[] }) => {
+      const now = Date.now();
+
       for (const pair of payload.pairs) {
         const unitA = this.unitSprites.get(pair.aId);
         const unitB = this.unitSprites.get(pair.bId);
 
         if (unitA && unitB) {
-          // Fire a volley! (3-5 bullets randomly)
-          const volleyCount = 3 + Math.floor(Math.random() * 3);
+          if (unitA.unitOwnerId !== unitB.unitOwnerId) {
+            const targetIdForA = unitB.serverUnit?.id ?? pair.bId;
+            const targetIdForB = unitA.serverUnit?.id ?? pair.aId;
+            unitA.combatEngagements.set(targetIdForA, now);
+            unitB.combatEngagements.set(targetIdForB, now);
+          }
 
-          for (let i = 0; i < volleyCount; i++) {
-            // Delay shots slightly for "rat-a-tat" effect
+          const volley = 3 + Math.floor(Math.random() * 3);
+          for (let i = 0; i < volley; i++) {
             setTimeout(() => {
-              this.effectSystem.spawnBullet(unitA.x, unitA.y, unitB.x, unitB.y);
-              this.effectSystem.spawnBullet(unitB.x, unitB.y, unitA.x, unitA.y);
-            }, i * 50);
+              const shooter = Math.random() > 0.5 ? unitA : unitB;
+              const target = shooter === unitA ? unitB : unitA;
+
+              if (!shooter.tacticalLayer || shooter.tacticalLayer.children.length === 0) return;
+              if (!target.tacticalLayer) return;
+
+              const sSoldiers = shooter.tacticalLayer.children;
+              const shooterSoldier = sSoldiers[Math.floor(Math.random() * sSoldiers.length)] as any;
+              const shooterBody = shooterSoldier?.bodyGroup as any;
+              if (!shooterBody) return;
+
+              const gunTipGlobal = shooterBody.toGlobal(new Point(1.8, 0.3));
+              const startPoint = this.effectSystem.container.toLocal(gunTipGlobal);
+
+              const tSoldiers = target.tacticalLayer.children;
+              let targetX: number;
+              let targetY: number;
+
+              if (tSoldiers.length > 0) {
+                const targetSoldier = tSoldiers[Math.floor(Math.random() * tSoldiers.length)] as any;
+                const targetGlobal = targetSoldier.toGlobal(new Point(0, 0));
+                const targetLocal = this.effectSystem.container.toLocal(targetGlobal);
+                targetX = targetLocal.x;
+                targetY = targetLocal.y;
+              } else {
+                const fallback = this.effectSystem.container.toLocal(new Point(target.x, target.y));
+                targetX = fallback.x;
+                targetY = fallback.y;
+              }
+
+              this.effectSystem.spawnBullet(startPoint.x, startPoint.y, targetX, targetY);
+            }, i * 30);
           }
         }
       }
@@ -163,6 +199,8 @@ export class MapEngine {
     this.socket.on(EVENTS.S_UNIT_DEATH, (payload: { unitId: string }) => {
       const sprite = this.unitSprites.get(payload.unitId);
       if (sprite) {
+        this.effectSystem.spawnBlood(sprite.x, sprite.y);
+        this.effectSystem.spawnBlood(sprite.x, sprite.y);
         sprite.parent?.removeChild(sprite);
         sprite.destroy();
         this.unitSprites.delete(payload.unitId);
