@@ -21,7 +21,6 @@ export type UnitSprite = Container & {
 
   // YUKA Systems
   entityManager?: YUKA.EntityManager;
-  time?: YUKA.Time;
 };
 
 // --- UTILS ---
@@ -38,6 +37,10 @@ function lerpAngle(start: number, end: number, amount: number): number {
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     return start + diff * amount;
+}
+
+function lerp(a: number, b: number, t: number): number {
+    return a + (b - a) * t;
 }
 
 function seededRandom(seed: number): number {
@@ -149,8 +152,13 @@ function createSoldier(i: number, color: number, unitSeed: number, manager: YUKA
 
     // D. Wander (Idle restlessness / Combat stress)
     const wanderBehavior = new YUKA.WanderBehavior();
-    wanderBehavior.weight = 0.1; // Subtle default
+    wanderBehavior.weight = 0.5; // Higher default for natural idle movement
     vehicle.steering.add(wanderBehavior);
+
+    // E. Flee (Panic Retreat) - Disabled by default
+    const fleeBehavior = new YUKA.FleeBehavior(new YUKA.Vector3(0, 0, 0), 2.0);
+    fleeBehavior.weight = 0.0;
+    vehicle.steering.add(fleeBehavior);
 
     manager.add(vehicle);
     
@@ -160,7 +168,8 @@ function createSoldier(i: number, color: number, unitSeed: number, manager: YUKA
         arrive: arriveBehavior,
         separation: separationBehavior,
         alignment: alignmentBehavior,
-        wander: wanderBehavior
+        wander: wanderBehavior,
+        flee: fleeBehavior
     };
 
     // --- GAMEPLAY STATS ---
@@ -168,6 +177,7 @@ function createSoldier(i: number, color: number, unitSeed: number, manager: YUKA
     (g as any).turnSpeed = 0.15; 
     (g as any).idlePhase = Math.random() * 100;
     (g as any).aimAngle = 0; // Independent head rotation
+    (g as any).morale = 1.0; // Start at full morale
 
     g.position.set(homeX, homeY);
     
@@ -188,7 +198,6 @@ export function ensureUnitSprite(host: MapEngine, serverUnit: { id: string; owne
   
   // Create Unit AI Brain
   container.entityManager = new YUKA.EntityManager();
-  container.time = new YUKA.Time();
 
   const color = getFactionColor(serverUnit.ownerId);
 
@@ -279,8 +288,8 @@ export function updateUnitSprite(host: MapEngine, sprite: UnitSprite, serverUnit
   }
 }
 
-export function updateTacticalVisuals(host: MapEngine, sprite: UnitSprite, zoom: number, now: number) {
-  if (!sprite.strategicLayer || !sprite.tacticalLayer || !sprite.entityManager || !sprite.time) return;
+export function updateTacticalVisuals(host: MapEngine, sprite: UnitSprite, zoom: number, now: number, delta: number) {
+  if (!sprite.strategicLayer || !sprite.tacticalLayer || !sprite.entityManager) return;
 
   const SHOW_TACTICAL = zoom > 1.2;
   sprite.strategicLayer.visible = !SHOW_TACTICAL;
@@ -291,40 +300,61 @@ export function updateTacticalVisuals(host: MapEngine, sprite: UnitSprite, zoom:
     const isCombat = sprite.serverUnit?.state === 'COMBAT';
     const time = now / 150; 
 
-    // ✅ STEP 1: DYNAMIC BEHAVIOR TUNING
-    // We adjust the AI "brain" of every soldier based on the squad state
+    // ✅ STEP 1: DYNAMIC BEHAVIOR TUNING WITH SMOOTH TRANSITIONS
+    // Define target weights based on squad state
+    let targetArrive = 0.8;
+    let targetAlign = 0.0;
+    let targetSep = 1.0;
+    let targetWander = 0.2;
+    let targetFlee = 0.0;
+    let maxSpeed = 0.3;
+
+    if (isMoving) {
+        // MARCHING: Strict formation, flow together
+        targetArrive = 2.5;  targetAlign = 1.5;  targetSep = 2.0;  targetWander = 0.0;
+        maxSpeed = 1.2;
+    } else if (isCombat) {
+        // COMBAT: Loose formation, stress movement
+        targetArrive = 0.5;  targetAlign = 0.0;  targetSep = 3.0;  targetWander = 0.5;
+        maxSpeed = 0.5;
+    } else {
+        // IDLE: Slight wander for life, but slow
+        targetArrive = 1.0;  targetAlign = 0.0;  targetSep = 1.2;  targetWander = 0.3;
+        maxSpeed = 0.2;
+    }
+
+    // Apply smooth behavior blending to every soldier
     const soldiers = sprite.tacticalLayer.children as any[];
+    const blendRate = 0.05; // 5% change per frame for smooth transitions
     
     soldiers.forEach(s => {
         if (!s.behaviors) return;
 
-        if (isMoving) {
-            // MARCHING: Strict formation, flow together
-            s.behaviors.arrive.weight = 2.5;     // Stick to formation
-            s.behaviors.alignment.weight = 1.0;  // Turn with group
-            s.behaviors.separation.weight = 2.0; // Don't trip
-            s.behaviors.wander.weight = 0.0;     // No wandering
-            s.vehicle.maxSpeed = 1.2;            // Move fast
-        } else if (isCombat) {
-            // COMBAT: Loose formation, stress movement
-            s.behaviors.arrive.weight = 0.5;     // Loose formation
-            s.behaviors.alignment.weight = 0.0;  // Look at enemies, not friends
-            s.behaviors.separation.weight = 3.0; // Spread out!
-            s.behaviors.wander.weight = 0.5;     // Combat shuffling/stress
-            s.vehicle.maxSpeed = 0.5;            // Careful movement
-        } else {
-            // IDLE: Relaxed
-            s.behaviors.arrive.weight = 0.8;     // Loose hold
-            s.behaviors.alignment.weight = 0.0;
-            s.behaviors.separation.weight = 1.0;
-            s.behaviors.wander.weight = 0.2;     // Subtle shifting
-            s.vehicle.maxSpeed = 0.3;            // Slow shuffle
+        // Check Morale for Panic Override
+        let actualTargetArrive = targetArrive;
+        let actualTargetFlee = targetFlee;
+        
+        if (s.morale < 0.3 && isCombat) {
+            // PANIC MODE: Ignore formation, run away!
+            actualTargetArrive = 0.0;
+            actualTargetFlee = 4.0; // High priority flee
+            targetSep = 5.0; // Scatter!
         }
+
+        // Smooth blend weights toward targets (prevents snapping)
+        s.behaviors.arrive.weight = lerp(s.behaviors.arrive.weight, actualTargetArrive, blendRate);
+        s.behaviors.alignment.weight = lerp(s.behaviors.alignment.weight, targetAlign, blendRate);
+        s.behaviors.separation.weight = lerp(s.behaviors.separation.weight, targetSep, blendRate);
+        s.behaviors.wander.weight = lerp(s.behaviors.wander.weight, targetWander, blendRate);
+        s.behaviors.flee.weight = lerp(s.behaviors.flee.weight, actualTargetFlee, blendRate);
+        
+        // Smooth speed transitions
+        s.vehicle.maxSpeed = lerp(s.vehicle.maxSpeed, maxSpeed, blendRate);
     });
 
-    // ✅ STEP 2: YUKA PHYSICS UPDATE
-    const delta = sprite.time.update().getDelta(); 
-    sprite.entityManager.update(Math.min(delta, 0.1));
+    // ✅ STEP 2: YUKA PHYSICS UPDATE (using global delta)
+    const safeDelta = Math.min(delta, 0.1);
+    sprite.entityManager.update(safeDelta);
 
     // Cleanup Combat Targets
     for (const [id, lastSeen] of sprite.combatEngagements) {
@@ -341,59 +371,72 @@ export function updateTacticalVisuals(host: MapEngine, sprite: UnitSprite, zoom:
           soldier.y = soldier.vehicle.position.y;
       }
 
-      // --- INDEPENDENT TURRET LOGIC ---
-      // The "Soldier" rotates to movement direction (Legs)
-      // The "BodyGroup" rotates to aim at target (Torso/Gun)
+      // --- AIMING & ROTATION ---
       
-      let moveAngle = soldier.rotation;
-      let aimAngle = 0; // Relative to body
-
-      // 1. Leg Rotation (Movement Direction)
-      const v = soldier.vehicle.velocity;
-      if (v.squaredLength() > 0.05) {
-          const velocityAngle = Math.atan2(v.y, v.x);
-          moveAngle = lerpAngle(soldier.rotation, velocityAngle, 0.1);
-      } else if (isMoving && baseHeading !== undefined) {
-          moveAngle = lerpAngle(soldier.rotation, baseHeading, 0.1);
-      }
-      soldier.rotation = moveAngle;
-
-      // 2. Torso Rotation (Aiming)
+      let targetLegAngle = soldier.rotation;
       let targetFound = false;
+      let angleToEnemy = 0;
+
+      // 1. Find Target (World Space)
       if (activeTargets.length > 0 && isCombat) {
           const targetId = activeTargets[idx % activeTargets.length];
           const target = host.unitSprites.get(targetId);
           if (target) {
-              const absAngleToTarget = Math.atan2(target.y - soldier.y, target.x - soldier.x);
-              // Convert absolute angle to local angle relative to legs
-              aimAngle = absAngleToTarget - moveAngle; 
-              // Normalize
-              while (aimAngle > Math.PI) aimAngle -= Math.PI * 2;
-              while (aimAngle < -Math.PI) aimAngle += Math.PI * 2;
-              
-              // Clamp torso twist (Can't rotate head 180 degrees backwards easily)
-              aimAngle = Math.max(-1.5, Math.min(1.5, aimAngle));
-              
+              const globalX = sprite.x + soldier.x;
+              const globalY = sprite.y + soldier.y;
+              angleToEnemy = Math.atan2(target.y - globalY, target.x - globalX);
               targetFound = true;
           }
       }
 
-      // Smooth Aim
-      soldier.bodyGroup.rotation = lerpAngle(soldier.bodyGroup.rotation, targetFound ? aimAngle : 0, 0.15);
+      // 2. Leg Rotation (Base Stance)
+      const v = soldier.vehicle.velocity;
+      const speed = v.length();
+      
+      if (speed > 0.05) {
+          // Physics movement
+          targetLegAngle = Math.atan2(v.y, v.x);
+      } else if (isMoving && baseHeading !== undefined) {
+          // Marching direction
+          targetLegAngle = baseHeading;
+      } else if (targetFound) {
+          // Combat Stance: Face enemy
+          targetLegAngle = angleToEnemy;
+      } else {
+          // IDLE: Random 360 Scan
+          if (now > soldier.nextLookTime) {
+              // Pick new random angle (Full Circle)
+              soldier.targetLookAngle = (Math.random() - 0.5) * Math.PI * 2;
+              // Hold for 2-5 seconds
+              soldier.nextLookTime = now + 2000 + Math.random() * 3000;
+          }
+          targetLegAngle = soldier.targetLookAngle;
+      }
+      
+      // Smooth Leg Turn
+      soldier.rotation = lerpAngle(soldier.rotation, targetLegAngle, 0.08); // Slower, relaxed turn
+
+      // 3. Aiming Logic (Body Offset)
+      let desiredAbsAim = targetFound ? angleToEnemy : soldier.rotation;
+      
+      // Interpolate Absolute Aim
+      let absAimAngle = lerpAngle(soldier.lastAbsRotation || soldier.rotation, desiredAbsAim, 0.2);
+      soldier.lastAbsRotation = absAimAngle;
+
+      // Apply Relative Rotation
+      soldier.bodyGroup.rotation = absAimAngle - soldier.rotation;
 
 
       // --- ANIMATION ---
-      const speed = v.length();
       const isWalking = speed > 0.1 || isMoving;
 
       if (isWalking) {
         const legSpeed = time + soldier.stepPhase;
         soldier.footL.x = -0.4 + Math.sin(legSpeed) * 0.4; 
         soldier.footR.x = 0.4 + Math.sin(legSpeed + Math.PI) * 0.4; 
-        // Bob body based on walk
         soldier.bodyGroup.y = Math.abs(Math.sin(legSpeed)) * 0.15;
+        soldier.bodyGroup.scale.set(1, 1);
       } else {
-        // Breathing
         const breath = Math.sin(now / 500 + soldier.idlePhase) * 0.02;
         soldier.bodyGroup.scale.set(1, 1 + breath);
         soldier.bodyGroup.y = 0;
@@ -401,19 +444,16 @@ export function updateTacticalVisuals(host: MapEngine, sprite: UnitSprite, zoom:
         soldier.footR.x = 0.4;
       }
 
-      // Combat Recoil
+      // Recoil
       if (isCombat && targetFound) {
         if (Math.random() < 0.02) { 
            soldier.flash.visible = true;
-           // Recoil backwards relative to AIM angle
-           const recoilDist = 0.8;
-           soldier.bodyGroup.x = -Math.cos(aimAngle) * recoilDist;
-           soldier.bodyGroup.y = -Math.sin(aimAngle) * recoilDist; // Also kick back Y local
+           // Recoil is relative to the BODY rotation
+           // Local recoil is always "backwards" (-x) relative to bodyGroup
+           soldier.bodyGroup.x = -0.8; 
         } else {
            soldier.flash.visible = false;
-           // Recover
-           soldier.bodyGroup.x *= 0.6;
-           if(Math.abs(soldier.bodyGroup.y) > 0.1) soldier.bodyGroup.y *= 0.6;
+           soldier.bodyGroup.x *= 0.6; // Recover
         }
       } else {
         soldier.flash.visible = false;

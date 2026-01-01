@@ -208,7 +208,7 @@ export class MapEngine {
     });
 
     this.app.ticker.add(() => {
-      handleTick(this);
+      handleTick(this, this.app.ticker.deltaMS / 1000);
       this.updateTextScaling();
       animateLabels(this.labelSystem);
       this.effectSystem.update();

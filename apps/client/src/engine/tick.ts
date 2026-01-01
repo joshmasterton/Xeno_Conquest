@@ -1,7 +1,7 @@
 import type { MapEngine, IMapEngineState } from './MapEngine';
 import { updateTacticalVisuals, type UnitSprite } from './view';
 
-export function handleTick(host: IMapEngineState & MapEngine) {
+export function handleTick(host: IMapEngineState & MapEngine, delta: number) {
   host.incrementFrames();
   const now = performance.now();
   const lastSample = host.getLastSample();
@@ -47,7 +47,7 @@ export function handleTick(host: IMapEngineState & MapEngine) {
 
   // LOD & ANIMATION LOOP (Runs for all units, even idle ones)
   for (const sprite of host.unitSprites.values()) {
-    updateTacticalVisuals(host, sprite as UnitSprite, currentZoom, now);
+    updateTacticalVisuals(host, sprite as UnitSprite, currentZoom, now, delta);
   }
 
   // Layer Visibility based on Zoom

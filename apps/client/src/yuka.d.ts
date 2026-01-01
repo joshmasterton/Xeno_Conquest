@@ -42,6 +42,11 @@ declare module 'yuka' {
     constructor();
   }
 
+  export class FleeBehavior extends SteeringBehavior {
+    constructor(target: Vector3, panicDistance: number);
+    target: Vector3;
+  }
+
   export class EntityManager {
     add(entity: Vehicle): void;
     remove(entity: Vehicle): void;

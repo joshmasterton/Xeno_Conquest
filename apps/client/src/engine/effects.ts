@@ -11,12 +11,13 @@ interface Bullet {
 }
 
 interface Particle {
-  sprite: Graphics;
+  sprite: Container | Graphics;
   vx: number;
   vy: number;
-  life: number;
+  life: number; 
   decay: number;
   rotationSpeed?: number;
+  scaleSpeed?: number;
 }
 
 export class EffectSystem {
@@ -31,6 +32,48 @@ export class EffectSystem {
 
     this.decalContainer = new Container();
     this.decalContainer.zIndex = 5;
+  }
+
+  // 💀 SPAWN DEAD SOLDIER
+  spawnCorpse(x: number, y: number, rotation: number, color: number) {
+    const g = new Container();
+    
+    // Body (Flattened/Slumped)
+    const body = new Graphics();
+    body.beginFill(color);
+    body.drawRoundedRect(-0.8, -0.6, 1.6, 1.2, 0.3);
+    body.endFill();
+    body.tint = 0x555555; // Dark dead color
+    body.scale.set(1.0, 0.7); // Flattened on ground
+    g.addChild(body);
+
+    const head = new Graphics();
+    head.beginFill(color);
+    head.drawCircle(0, 0, 0.6);
+    head.endFill();
+    head.tint = 0x555555;
+    head.position.set(0.6, 0.2); // Head crooked
+    g.addChild(head);
+
+    g.position.set(x, y);
+    g.rotation = rotation;
+    
+    // Add blood pool under the corpse
+    const pool = new Graphics();
+    pool.beginFill(0x4a0000, 0.8);
+    pool.drawEllipse(0, 0, 2, 1.5);
+    pool.endFill();
+    pool.position.set(x, y);
+    pool.rotation = Math.random() * Math.PI;
+    this.decalContainer.addChildAt(pool, 0);
+    
+    // Add corpse to decals
+    this.decalContainer.addChild(g);
+
+    // DECAY LOGIC: Fade out over 20 seconds (approx 1200 frames)
+    // Add both the body and the blood pool to the particle system for fading
+    this.particles.push({ sprite: g, vx: 0, vy: 0, life: 1.0, decay: 0.0008 });
+    this.particles.push({ sprite: pool, vx: 0, vy: 0, life: 1.0, decay: 0.0008 });
   }
 
   spawnBullet(x1: number, y1: number, x2: number, y2: number) {
@@ -86,37 +129,38 @@ export class EffectSystem {
   }
 
   spawnBlood(x: number, y: number) {
-    const count = 1 + Math.floor(Math.random() * 2);
-    for (let i = 0; i < count; i++) {
-      const p = new Graphics();
-      p.beginFill(0x990000);
-      p.drawCircle(0, 0, 0.1 + Math.random() * 0.15);
-      p.endFill();
-      p.position.set(x, y);
-      this.container.addChild(p);
-      this.particles.push({
-        sprite: p,
-        vx: (Math.random() - 0.5) * 0.8,
-        vy: (Math.random() - 0.5) * 0.8,
-        life: 1.0,
-        decay: 0.15,
-      });
+    // 1. FLYING MIST (CLUSTER EFFECT)
+    const count = 3 + Math.floor(Math.random() * 3);
+    for(let i=0; i<count; i++) {
+        const p = new Graphics();
+        p.beginFill(0x8a0303); 
+        p.drawCircle(0, 0, 0.2 + Math.random() * 0.3); // Varied sizes
+        p.endFill();
+        p.position.set(x, y);
+        this.container.addChild(p);
+        
+        const speed = 0.5 + Math.random();
+        const angle = Math.random() * Math.PI * 2;
+
+        this.particles.push({
+            sprite: p,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1.0,
+            decay: 0.08 + Math.random() * 0.05 
+        });
     }
 
+    // 2. GROUND STAIN (Permanent-ish)
     const stain = new Graphics();
-    stain.beginFill(0x550000, 0.3);
-    const w = 0.4 + Math.random() * 0.4;
-    const h = 0.2 + Math.random() * 0.2;
-    stain.drawEllipse(0, 0, w, h);
+    stain.beginFill(0x550000, 0.4);
+    stain.drawEllipse(0, 0, 0.5 + Math.random(), 0.3 + Math.random());
     stain.endFill();
-
-    const jitterX = (Math.random() - 0.5) * 1.5;
-    const jitterY = (Math.random() - 0.5) * 1.5;
-    stain.position.set(x + jitterX, y + jitterY);
+    stain.position.set(x + (Math.random()-0.5), y + (Math.random()-0.5));
     stain.rotation = Math.random() * Math.PI * 2;
-
+    
     this.decalContainer.addChild(stain);
-    this.particles.push({ sprite: stain, vx: 0, vy: 0, life: 1, decay: 0.02 });
+    this.particles.push({ sprite: stain, vx: 0, vy: 0, life: 1.0, decay: 0.005 }); // Fades slowly
   }
 
   spawnDirt(x: number, y: number) {
@@ -137,17 +181,19 @@ export class EffectSystem {
 
   spawnSmoke(x: number, y: number, size: number) {
     const p = new Graphics();
-    p.beginFill(0xaaaaaa, 0.15);
+    p.beginFill(0xaaaaaa, 0.3);
     p.drawCircle(0, 0, 0.8 * size);
     p.endFill();
     p.position.set(x, y);
     this.container.addChild(p);
+    
     this.particles.push({
-      sprite: p,
-      vx: (Math.random() - 0.5) * 0.05,
-      vy: (Math.random() - 0.5) * 0.05,
-      life: 1.0,
-      decay: 0.05,
+        sprite: p,
+        vx: (Math.random()-0.5)*0.05,
+        vy: (Math.random()-0.5)*0.05,
+        life: 1.0,
+        decay: 0.02,
+        scaleSpeed: 0.02 // Grow over time
     });
   }
 
@@ -175,54 +221,26 @@ export class EffectSystem {
       }
     }
 
+    // Particle Update Loop (Handles decay for blood, smoke, AND corpses)
     for (let i = this.particles.length - 1; i >= 0; i--) {
-      const p = this.particles[i];
-      p.life -= p.decay;
-
-      if (p.life <= 0) {
-        p.sprite.parent?.removeChild(p.sprite);
-        p.sprite.destroy();
-        this.particles.splice(i, 1);
-      } else {
-        p.sprite.x += p.vx;
-        p.sprite.y += p.vy;
-        p.sprite.alpha = p.life;
-        if (p.rotationSpeed) p.sprite.rotation += p.rotationSpeed;
-        if (p.decay < 0.01) {
-          p.vx *= 0.9;
-          p.vy *= 0.9;
+        const p = this.particles[i];
+        p.life -= p.decay;
+        
+        if (p.life <= 0) {
+            p.sprite.parent?.removeChild(p.sprite);
+            p.sprite.destroy();
+            this.particles.splice(i, 1);
+        } else {
+            p.sprite.x += p.vx;
+            p.sprite.y += p.vy;
+            p.sprite.alpha = p.life;
+            if (p.rotationSpeed) p.sprite.rotation += p.rotationSpeed;
+            if (p.scaleSpeed) {
+                p.sprite.scale.x += p.scaleSpeed;
+                p.sprite.scale.y += p.scaleSpeed;
+            }
+            if(p.decay < 0.01) { p.vx *= 0.9; p.vy *= 0.9; } // Friction for ground items
         }
-      }
     }
-  }
-
-  spawnCorpse(x: number, y: number, rotation: number, color: number): void {
-    const container = new Container();
-    container.position.set(x, y);
-    container.rotation = rotation;
-
-    // Darkened body (rounded rect)
-    const body = new Graphics();
-    const bodyColor = ((color >> 16) & 0xff) * 0.5 | ((color >> 8) & 0xff) * 0.5 << 8 | (color & 0xff) * 0.5;
-    body.beginFill(bodyColor);
-    body.drawRoundedRect(-3, -5, 6, 10, 2);
-    body.endFill();
-    container.addChild(body);
-
-    // Head (circle, faction color)
-    const head = new Graphics();
-    head.beginFill(color);
-    head.drawCircle(0, -8, 2);
-    head.endFill();
-    container.addChild(head);
-
-    // Blood pool (ellipse)
-    const blood = new Graphics();
-    blood.beginFill(0x660000, 0.4);
-    blood.drawEllipse(0, 7, 5, 2);
-    blood.endFill();
-    container.addChild(blood);
-
-    this.decalContainer.addChild(container);
   }
 }
